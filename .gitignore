@@ -1,0 +1,34 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+
+# Native OS binaries (C++/Rust compiled cores via FFI)
+lib/modules/native/*.dll
+lib/modules/native/*.so
+lib/modules/native/*.dylib
+
+# Platform build outputs
+windows/flutter/ephemeral/
+macos/Flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# Logs and temporary files
+logs/*.log
+assets/temp/
+
+# Local IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.claude/
+
+# Generated files
+*.g.dart
+*.freezed.dart
+
+# Personal config
+config.ini
+config.json
+/dist/

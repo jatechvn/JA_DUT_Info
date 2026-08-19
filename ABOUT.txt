@@ -1,0 +1,10 @@
+========================================================================
+                       PROJECT INFORMATION CARD
+========================================================================
+Project Name : JA_DUT_Info
+Tech Stack   : Flutter 3.x / Dart 3.x
+Managed By   : JA Auto Git
+Website      : https://jatechvn.github.io/
+------------------------------------------------------------------------
+Description  : Device Under Test (DUT) information display widget with transparent Aero/Acrylic blur effects.
+========================================================================
