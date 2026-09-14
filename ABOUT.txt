@@ -2,9 +2,15 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Tech Stack   : Flutter 3.x / Dart 3.x
+Version      : v2.1.0 (Dynamic Click-Through & QQ Edge Docking Edition)
+Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/
 ------------------------------------------------------------------------
-Description  : Device Under Test (DUT) information display widget with transparent Aero/Acrylic blur effects.
+Description  : Ultra-lightweight floating desktop widget displaying Device 
+               Under Test (DUT) hardware parameters with QQ Guardian 80% 
+               edge docking, dynamic 4-corner auto-adaptation, Taskbar 
+               snugging, Bézier leader wires, and per-region transparent 
+               mouse click-through to underlying background applications.
 ========================================================================
+

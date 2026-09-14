@@ -40,25 +40,17 @@ void ApplyThemeWin10(HWND hwnd, bool is_dark) {
     pSetWindowCompositionAttribute setWindowCompAttr = 
         (pSetWindowCompositionAttribute)GetProcAddress(hUser, "SetWindowCompositionAttribute");
     if (setWindowCompAttr) {
-      DWORD alpha = 0x66; // ~40% opacity
-      if (alpha == 0) alpha = 1; // Zero-alpha guard
-      
-      DWORD r = is_dark ? 0x1B : 0xF3;
-      DWORD g = is_dark ? 0x15 : 0xF4;
-      DWORD b = is_dark ? 0x14 : 0xF6;
-      DWORD tint_color = (alpha << 24) | (b << 16) | (g << 8) | r; // ABGR format
-      
-      ACCENT_POLICY policy = { ACCENT_ENABLE_BLURBEHIND, 2u, tint_color, 0u };
+      ACCENT_POLICY policy = { ACCENT_ENABLE_TRANSPARENTBACKGROUND, 2u, 0x00000000, 0u };
       WINDOWCOMPOSITIONATTRIBDATA data = { WCA_ACCENT_POLICY, &policy, sizeof(policy) };
       setWindowCompAttr(hwnd, &data);
     }
   }
 
-  // Authorize composition with a 1px top margin to prevent duplicate border rendering
-  MARGINS margins = { 0, 0, 1, 0 };
+  // Extend frame to entire client area for transparency
+  MARGINS margins = { -1, -1, -1, -1 };
   DwmExtendFrameIntoClientArea(hwnd, &margins);
 
-  // Force window repaint to apply layout alterations
+  // Force window repaint
   RECT rect;
   GetWindowRect(hwnd, &rect);
   SetWindowPos(hwnd, nullptr, 0, 0, (rect.right - rect.left) - 1, (rect.bottom - rect.top), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);

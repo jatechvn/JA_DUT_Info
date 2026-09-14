@@ -1,5 +1,5 @@
 // lib/modules/constants.dart
 
-const String appId = 'ja.project.l10dutinfo.v1';
+const String appId = 'ja.project.l10dutinfo.v2';
 const String appName = 'JA_DUT_Info';
-const String appVersion = '1.0.0';
+const String appVersion = '2.1.0';

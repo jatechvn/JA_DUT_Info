@@ -22,7 +22,6 @@ assets/temp/
 .idea/
 .DS_Store
 Thumbs.db
-.claude/
 
 # Generated files
 *.g.dart
@@ -31,4 +30,14 @@ Thumbs.db
 # Personal config
 config.ini
 config.json
-/dist/
+
+# Release & build packaging
+dist/
+dist_pack/
+backup/
+*.lnk
+*.zip
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+

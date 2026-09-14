@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JA DUT Info - High Performance Corner Bubble</title>
+  <!-- Google Fonts: Outfit, Plus Jakarta Sans, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at 50% 30%, #0f172a 0%, #020617 100%);
+      --surface-glass: rgba(15, 23, 42, 0.88);
+      --surface-card: rgba(30, 41, 59, 0.9);
+      --surface-card-hover: rgba(51, 65, 85, 1);
+      --border-color: rgba(148, 163, 184, 0.22);
+      --border-glow: rgba(56, 189, 248, 0.6);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      
+      --accent-iq5: linear-gradient(135deg, #00b4db 0%, #0083b0 50%, #0052d4 100%);
+      --accent-iq4: linear-gradient(135deg, #8e2de2 0%, #4a00e0 50%, #1f1c2c 100%);
+      --accent-offline: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+      
+      --status-online: #10b981;
+      --status-loading: #f59e0b;
+      --status-offline: #64748b;
+      --status-glow: 0 0 14px rgba(16, 185, 129, 0.85);
+      
+      --wire-color: rgba(56, 189, 248, 0.65);
+      --wire-glow: rgba(56, 189, 248, 0.95);
+      --wire-pulse: #38bdf8;
+    }
+
+    [data-theme="light"] {
+      --bg-gradient: radial-gradient(circle at 50% 30%, #f1f5f9 0%, #cbd5e1 100%);
+      --surface-glass: rgba(255, 255, 255, 0.9);
+      --surface-card: rgba(255, 255, 255, 0.95);
+      --surface-card-hover: rgba(241, 245, 249, 1);
+      --border-color: rgba(203, 213, 225, 0.9);
+      --border-glow: rgba(0, 132, 255, 0.5);
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --wire-color: rgba(0, 132, 255, 0.6);
+      --wire-glow: rgba(0, 132, 255, 0.9);
+      --wire-pulse: #0084ff;
+    }
+
+    [data-theme="cyberpunk"] {
+      --bg-gradient: radial-gradient(circle at 50% 30%, #0a0e17 0%, #030712 100%);
+      --surface-glass: rgba(10, 15, 29, 0.92);
+      --surface-card: rgba(13, 22, 44, 0.95);
+      --surface-card-hover: rgba(23, 37, 84, 1);
+      --border-color: rgba(0, 255, 178, 0.35);
+      --border-glow: rgba(0, 255, 178, 0.9);
+      --text-primary: #e0f2fe;
+      --text-secondary: #7dd3fc;
+      --text-muted: #38bdf8;
+      --accent-iq5: linear-gradient(135deg, #00ff87 0%, #60efff 100%);
+      --accent-iq4: linear-gradient(135deg, #f72585 0%, #7209b7 100%);
+      --wire-color: rgba(0, 255, 178, 0.7);
+      --wire-glow: rgba(0, 255, 178, 1);
+      --wire-pulse: #00ff87;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      background: var(--bg-gradient);
+      color: var(--text-primary);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      /* GPU compositing root */
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    /* Ambient Background - Static layer with isolation */
+    .bg-canvas {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      contain: strict;
+    }
+
+    .bg-grid {
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    .desktop-decor {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 40px;
+      opacity: 0.14;
+      pointer-events: none;
+      contain: strict;
+    }
+
+    .desktop-decor .screen-mark {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    /* Top Control Header */
+    header {
+      position: relative;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 18px;
+      background: var(--surface-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-color);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+      contain: layout style;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0084ff, #00c6ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 4px 10px rgba(0, 132, 255, 0.4);
+    }
+
+    .brand-text h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 14.5px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text span {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--surface-card);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+      will-change: transform;
+    }
+
+    .btn:hover {
+      background: var(--surface-card-hover);
+      border-color: var(--border-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn.active {
+      background: #0084ff;
+      color: white;
+      border-color: #0084ff;
+      box-shadow: 0 0 10px rgba(0, 132, 255, 0.45);
+    }
+
+    .btn-group {
+      display: flex;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 2px;
+      border-radius: 7px;
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-group .btn {
+      border: none;
+      background: transparent;
+      padding: 4px 8px;
+      border-radius: 5px;
+    }
+
+    .btn-group .btn.active {
+      background: var(--surface-card-hover);
+      color: #38bdf8;
+    }
+
+    /* Live FPS Monitor HUD */
+    .fps-hud {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+    }
+
+    .fps-value {
+      color: #10b981;
+    }
+
+    /* Main Canvas Area */
+    #canvas-container {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      height: calc(100vh - 50px);
+      z-index: 10;
+      overflow: hidden;
+      contain: layout size;
+    }
+
+    /* SVG Leader Wires Overlay - Static Persistent Elements */
+    #wires-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 15;
+      contain: strict;
+    }
+
+    .wire-path {
+      fill: none;
+      stroke: var(--wire-color);
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: stroke 0.2s, stroke-width 0.2s;
+      filter: drop-shadow(0 0 3px var(--wire-glow));
+    }
+
+    .wire-path.highlighted {
+      stroke: var(--wire-pulse);
+      stroke-width: 3.4;
+      filter: drop-shadow(0 0 10px var(--wire-pulse));
+    }
+
+    .wire-path.circuit {
+      stroke-dasharray: 6 3;
+    }
+
+    .wire-dot {
+      fill: #ffffff;
+      stroke: var(--wire-pulse);
+      stroke-width: 2.2;
+      filter: drop-shadow(0 0 5px var(--wire-pulse));
+    }
+
+    /* Floating Bubble Container with Hardware Acceleration */
+    #bubble-root {
+      position: absolute;
+      cursor: grab;
+      z-index: 35;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      will-change: transform, left, top;
+      transform: translateZ(0);
+    }
+
+    #bubble-root:active {
+      cursor: grabbing;
+    }
+
+    /* Messenger Avatar Bubble */
+    .messenger-bubble {
+      width: 66px;
+      height: 66px;
+      border-radius: 50%;
+      background: var(--accent-iq5);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.45),
+        0 0 0 2.5px rgba(255, 255, 255, 0.25),
+        inset 0 2px 4px rgba(255, 255, 255, 0.4),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.3);
+      color: #ffffff;
+      text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, background 0.3s;
+      will-change: transform;
+    }
+
+    .messenger-bubble:hover {
+      transform: scale(1.08);
+      box-shadow: 
+        0 12px 30px rgba(0, 0, 0, 0.55),
+        0 0 0 3.5px rgba(255, 255, 255, 0.4),
+        0 0 20px rgba(56, 189, 248, 0.65);
+    }
+
+    .messenger-bubble.bubble-pulse-in {
+      animation: bubbleBloom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes bubbleBloom {
+      0% { transform: scale(0.85); }
+      60% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    /* Gloss Highlight */
+    .messenger-bubble::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 10px;
+      right: 10px;
+      height: 18px;
+      border-radius: 50px 50px 25px 25px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 100%);
+      pointer-events: none;
+    }
+
+    .bubble-model-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+
+    .bubble-sublabel {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      opacity: 0.9;
+      margin-top: 2px;
+    }
+
+    /* Status Dot */
+    .status-dot {
+      position: absolute;
+      bottom: 1px;
+      right: 1px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--status-online);
+      border: 2.5px solid #0f172a;
+      box-shadow: var(--status-glow);
+    }
+
+    .status-dot.pulsing::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: inherit;
+      opacity: 0.7;
+      animation: pulseAnim 1.6s infinite ease-out;
+    }
+
+    @keyframes pulseAnim {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* Station Pill */
+    .bubble-station-pill {
+      position: absolute;
+      top: -11px;
+      background: #00adb5;
+      color: #042f2e;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.5px;
+      font-weight: 800;
+      padding: 1px 7px;
+      border-radius: 10px;
+      box-shadow: 0 3px 8px rgba(0, 173, 181, 0.4), 0 0 0 1px rgba(255,255,255,0.4);
+      white-space: nowrap;
+      animation: stationBounce 2.4s infinite ease-in-out;
+      will-change: transform;
+    }
+
+    @keyframes stationBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+
+    /* Compact Vertically Stacked Cards Container */
+    #cards-container {
+      position: absolute;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      pointer-events: auto;
+      will-change: left, top, transform;
+      contain: layout style;
+    }
+
+    /* Compact Callout Card with GPU Layer & Smooth Transitions */
+    .info-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface-card);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 7px;
+      padding: 4px 10px;
+      width: 280px;
+      height: 30px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+      cursor: pointer;
+      transform: translate3d(0, 0, 0);
+      transition: 
+        transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 0.22s ease-out,
+        background 0.15s,
+        border-color 0.15s;
+      will-change: transform, opacity;
+    }
+
+    .info-card:hover {
+      background: var(--surface-card-hover);
+      border-color: var(--border-glow);
+      transform: scale3d(1.03, 1.03, 1) !important;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), 0 0 10px rgba(56, 189, 248, 0.25);
+    }
+
+    .info-card.warning-card {
+      border-color: rgba(239, 68, 68, 0.6);
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    /* High-performance Card Transformation states */
+    .cards-left-mode .info-card.card-hidden {
+      opacity: 0;
+      transform: translate3d(40px, 0, 0) scale3d(0.7, 0.7, 1);
+      pointer-events: none;
+    }
+
+    .cards-left-mode .info-card.card-visible {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+    }
+
+    .cards-right-mode .info-card.card-hidden {
+      opacity: 0;
+      transform: translate3d(-40px, 0, 0) scale3d(0.7, 0.7, 1);
+      pointer-events: none;
+    }
+
+    .cards-right-mode .info-card.card-visible {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+    }
+
+    /* Anchors on Card */
+    .card-anchor {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 5px #38bdf8;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .anchor-left { left: -3.5px; }
+    .anchor-right { right: -3.5px; }
+
+    .card-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      min-width: 48px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    .copy-icon {
+      opacity: 0;
+      color: var(--text-muted);
+      transition: opacity 0.15s;
+    }
+
+    .info-card:hover .copy-icon {
+      opacity: 1;
+    }
+
+    /* Corner Position Tag Overlay */
+    .corner-indicator-tag {
+      position: absolute;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--wire-pulse);
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border-color);
+      padding: 2px 7px;
+      border-radius: 5px;
+      pointer-events: none;
+      backdrop-filter: blur(8px);
+      z-index: 30;
+      white-space: nowrap;
+      will-change: left, top;
+    }
+
+    /* Toast Notification */
+    #toast {
+      position: fixed;
+      top: 65px;
+      right: 18px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #10b981;
+      color: #f8fafc;
+      padding: 7px 12px;
+      border-radius: 7px;
+      font-size: 11.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 12px rgba(16, 185, 129, 0.25);
+      z-index: 100;
+      opacity: 0;
+      transform: translate3d(0, -10px, 0);
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity, transform;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+
+    /* Bottom Information & Guide Bar */
+    .bottom-hint-bar {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface-glass);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+      padding: 5px 14px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      z-index: 40;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--status-online);
+    }
+
+    .anim-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+  </style>
+</head>
+<body data-theme="dark">
+  <div class="bg-canvas bg-grid"></div>
+  
+  <div class="desktop-decor">
+    <div style="display: flex; justify-content: space-between;">
+      <span class="screen-mark">TOP-LEFT CORNER [↖]</span>
+      <span class="screen-mark">TOP-RIGHT CORNER [↗]</span>
+    </div>
+    <div style="display: flex; justify-content: space-between;">
+      <span class="screen-mark">BOTTOM-LEFT CORNER [↙]</span>
+      <span class="screen-mark">BOTTOM-RIGHT CORNER [↘]</span>
+    </div>
+  </div>
+
+  <!-- Top Controls -->
+  <header>
+    <div class="brand-title">
+      <div class="brand-logo-icon">
+        <i data-lucide="zap" style="width: 17px; height: 17px;"></i>
+      </div>
+      <div class="brand-text">
+        <h1>JA DUT INFO • HIGH PERFORMANCE ENGINE</h1>
+        <span>Tối ưu hóa phần cứng GPU 60/120 FPS & Tái sử dụng đối tượng SVG</span>
+      </div>
+    </div>
+
+    <!-- Quick Controls -->
+    <div class="top-controls">
+      <!-- Real-time FPS Meter -->
+      <div class="fps-hud" title="Tốc độ khung hình thực tế">
+        <span>FPS:</span>
+        <span class="fps-value" id="fps-display">60</span>
+      </div>
+
+      <!-- 4 Quick Corner Snaps -->
+      <div class="btn-group">
+        <button class="btn" id="snap-br" onclick="snapToCorner('BR')">↘️ Dưới-Phải</button>
+        <button class="btn" id="snap-bl" onclick="snapToCorner('BL')">↙️ Dưới-Trái</button>
+        <button class="btn" id="snap-tr" onclick="snapToCorner('TR')">↗️ Trên-Phải</button>
+        <button class="btn" id="snap-tl" onclick="snapToCorner('TL')">↖️ Trên-Trái</button>
+      </div>
+
+      <!-- Simulation Actions -->
+      <div class="btn-group">
+        <button class="btn active" id="btn-iq5" onclick="triggerConnect('IQ5')">🟢 IQ5</button>
+        <button class="btn" id="btn-iq4" onclick="triggerConnect('IQ4')">🟣 IQ4</button>
+        <button class="btn" id="btn-offline" onclick="triggerDisconnect()">🔴 Ngắt</button>
+        <button class="btn" id="btn-auto" onclick="toggleAutoSimulate()">🔄 Lặp thử</button>
+      </div>
+
+      <!-- Themes -->
+      <div class="btn-group">
+        <button class="btn active" onclick="setTheme('dark')">🌙</button>
+        <button class="btn" onclick="setTheme('light')">☀️</button>
+        <button class="btn" onclick="setTheme('cyberpunk')">⚡</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Interactive Canvas -->
+  <main id="canvas-container">
+    <!-- SVG for Dynamic Connecting Wires (Pre-allocated pool of elements) -->
+    <svg id="wires-svg">
+      <!-- Static Persistent Paths for 6 cards -->
+      <path id="wire-path-0" class="wire-path circuit"></path>
+      <path id="wire-path-1" class="wire-path circuit"></path>
+      <path id="wire-path-2" class="wire-path circuit"></path>
+      <path id="wire-path-3" class="wire-path circuit"></path>
+      <path id="wire-path-4" class="wire-path circuit"></path>
+      <path id="wire-path-5" class="wire-path circuit"></path>
+
+      <!-- Static Persistent Tip Dots for 6 cards -->
+      <circle id="wire-dot-0" class="wire-dot" r="3"></circle>
+      <circle id="wire-dot-1" class="wire-dot" r="3"></circle>
+      <circle id="wire-dot-2" class="wire-dot" r="3"></circle>
+      <circle id="wire-dot-3" class="wire-dot" r="3"></circle>
+      <circle id="wire-dot-4" class="wire-dot" r="3"></circle>
+      <circle id="wire-dot-5" class="wire-dot" r="3"></circle>
+
+      <!-- Central Hub Dot -->
+      <circle id="wire-hub-dot" class="wire-dot" r="4"></circle>
+    </svg>
+
+    <!-- Corner Indicator Label -->
+    <div id="corner-tag" class="corner-indicator-tag" style="display: none;"></div>
+
+    <!-- Floating Chat Bubble -->
+    <div id="bubble-root">
+      <div id="bubble-station" class="bubble-station-pill">
+        MMI_STATION_01
+      </div>
+
+      <div class="messenger-bubble" id="main-bubble" title="Kéo thả hoặc click để đóng/mở">
+        <div class="bubble-model-name" id="bubble-name">IQ5</div>
+        <div class="bubble-sublabel" id="bubble-sub">DUT READY</div>
+        <div class="status-dot pulsing" id="bubble-status-dot"></div>
+      </div>
+    </div>
+
+    <!-- Compact Vertically Stacked Data Cards -->
+    <div id="cards-container" class="cards-left-mode">
+      <!-- PCASN -->
+      <div class="info-card card-visible" data-key="PCASN" data-index="0" onclick="copyCard('PCASN')">
+        <div class="card-anchor anchor-left" style="opacity: 0;"></div>
+        <div class="card-anchor anchor-right" style="opacity: 1;"></div>
+        <div class="card-label"><i data-lucide="cpu" style="width: 12px; height: 12px;"></i> PCASN</div>
+        <div class="card-value" id="val-pcasn">QB95230001889</div>
+        <div class="card-badge" id="badge-model">IQ5</div>
+        <i data-lucide="copy" class="copy-icon" style="width: 12px; height: 12px;"></i>
+      </div>
+
+      <!-- SYSSN -->
+      <div class="info-card card-visible" data-key="SYSSN" data-index="1" onclick="copyCard('SYSSN')">
+        <div class="card-anchor anchor-left" style="opacity: 0;"></div>
+        <div class="card-anchor anchor-right" style="opacity: 1;"></div>
+        <div class="card-label"><i data-lucide="hash" style="width: 12px; height: 12px;"></i> SYSSN</div>
+        <div class="card-value" id="val-syssn">QP5A23490012</div>
+        <div class="card-badge">PASS</div>
+        <i data-lucide="copy" class="copy-icon" style="width: 12px; height: 12px;"></i>
+      </div>
+
+      <!-- SYSPN -->
+      <div class="info-card card-visible" data-key="SYSPN" data-index="2" onclick="copyCard('SYSPN')">
+        <div class="card-anchor anchor-left" style="opacity: 0;"></div>
+        <div class="card-anchor anchor-right" style="opacity: 1;"></div>
+        <div class="card-label"><i data-lucide="box" style="width: 12px; height: 12px;"></i> SYSPN</div>
+        <div class="card-value" id="val-syspn">900-12845-0010</div>
+        <i data-lucide="copy" class="copy-icon" style="width: 12px; height: 12px;"></i>
+      </div>
+
+      <!-- LCMPN -->
+      <div class="info-card card-visible" id="card-lcmpn" data-key="LCMPN" data-index="3" onclick="copyCard('LCMPN')">
+        <div class="card-anchor anchor-left" style="opacity: 0;"></div>
+        <div class="card-anchor anchor-right" style="opacity: 1;"></div>
+        <div class="card-label"><i data-lucide="monitor" style="width: 12px; height: 12px;"></i> LCMPN</div>
+        <div class="card-value" id="val-lcmpn">LCM-BOE-95-REV3</div>
+        <i data-lucide="copy" class="copy-icon" style="width: 12px; height: 12px;"></i>
+      </div>
+
+      <!-- IMEI -->
+      <div class="info-card card-visible" data-key="IMEI" data-index="4" onclick="copyCard('IMEI')">
+        <div class="card-anchor anchor-left" style="opacity: 0;"></div>
+        <div class="card-anchor anchor-right" style="opacity: 1;"></div>
+        <div class="card-label"><i data-lucide="phone" style="width: 12px; height: 12px;"></i> IMEI</div>
+        <div class="card-value" id="val-imei">863920194827150</div>
+        <i data-lucide="copy" class="copy-icon" style="width: 12px; height: 12px;"></i>
+      </div>
+
+      <!-- CPU -->
+      <div class="info-card card-visible" data-key="CPU" data-index="5" onclick="copyCard('CPU')">
+        <div class="card-anchor anchor-left" style="opacity: 0;"></div>
+        <div class="card-anchor anchor-right" style="opacity: 1;"></div>
+        <div class="card-label"><i data-lucide="microchip" style="width: 12px; height: 12px;"></i> CPU</div>
+        <div class="card-value" id="val-cpu">MPSS.DE.3.1.1-00293</div>
+        <i data-lucide="copy" class="copy-icon" style="width: 12px; height: 12px;"></i>
+      </div>
+    </div>
+
+    <!-- Bottom Hint Bar -->
+    <div class="bottom-hint-bar">
+      <div style="display: flex; align-items: center; gap: 6px; font-weight: 600;">
+        <div class="live-dot" id="bar-dot"></div>
+        <span id="bar-status-text">Connected: 127.0.0.1:5555 (IQ5)</span>
+      </div>
+      <div style="width: 1px; height: 14px; background: var(--border-color);"></div>
+      <div class="anim-badge" id="anim-status-badge">60 FPS • GPU VSync Active</div>
+      <div style="width: 1px; height: 14px; background: var(--border-color);"></div>
+      <button class="btn" style="padding: 3px 7px; font-size: 10px;" onclick="toggleExpand()">
+        <span id="toggle-text">Ẩn / Hiện Dây</span>
+      </button>
+    </div>
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast">
+    <i data-lucide="check-circle" style="color: #10b981; width: 15px; height: 15px;"></i>
+    <span id="toast-msg">Đã sao chép!</span>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // ==========================================
+    // HIGH PERFORMANCE FPS TICKER
+    // ==========================================
+    let frameCount = 0;
+    let lastFpsUpdate = performance.now();
+    const fpsDisplay = document.getElementById('fps-display');
+
+    function updateFpsTicker(now) {
+      frameCount++;
+      if (now - lastFpsUpdate >= 500) {
+        const fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+        fpsDisplay.textContent = fps;
+        fpsDisplay.style.color = fps >= 55 ? '#10b981' : (fps >= 30 ? '#f59e0b' : '#ef4444');
+        frameCount = 0;
+        lastFpsUpdate = now;
+      }
+      requestAnimationFrame(updateFpsTicker);
+    }
+    requestAnimationFrame(updateFpsTicker);
+
+    // ==========================================
+    // STATE & PRE-ALLOCATED CACHE
+    // ==========================================
+    let isConnected = true;
+    let isExpanded = true;
+    let hoveredCardKey = null;
+    let horizontalDir = 'left';
+    let verticalDir = 'above';
+    let currentModel = 'IQ5';
+    let isAnimating = false;
+    let autoSimTimer = null;
+    let currentAnimFrame = null;
+
+    // Cache pre-allocated SVG DOM Elements (ZERO DOM allocations per frame)
+    const wirePaths = [
+      document.getElementById('wire-path-0'),
+      document.getElementById('wire-path-1'),
+      document.getElementById('wire-path-2'),
+      document.getElementById('wire-path-3'),
+      document.getElementById('wire-path-4'),
+      document.getElementById('wire-path-5')
+    ];
+
+    const wireDots = [
+      document.getElementById('wire-dot-0'),
+      document.getElementById('wire-dot-1'),
+      document.getElementById('wire-dot-2'),
+      document.getElementById('wire-dot-3'),
+      document.getElementById('wire-dot-4'),
+      document.getElementById('wire-dot-5')
+    ];
+
+    const wireHubDot = document.getElementById('wire-hub-dot');
+
+    // Wire growth progress (0 to 1) for each wire
+    const wireGrowth = new Float32Array([1, 1, 1, 1, 1, 1]);
+
+    const mockData = {
+      IQ5: {
+        model: 'IQ5',
+        sub: 'DUT READY',
+        bg: 'var(--accent-iq5)',
+        status: 'Connected: adb-device-01 (IQ5)',
+        statusColor: 'var(--status-online)',
+        dotClass: 'status-dot pulsing',
+        station: 'MMI_STATION_01',
+        pcasn: 'QB95230001889',
+        syssn: 'QP5A23490012',
+        syspn: '900-12845-0010',
+        lcmpn: 'LCM-BOE-95-REV3',
+        lcmpnWarning: false,
+        imei: '863920194827150',
+        cpu: 'MPSS.DE.3.1.1-00293'
+      },
+      IQ4: {
+        model: 'IQ4',
+        sub: 'DUT READY',
+        bg: 'var(--accent-iq4)',
+        status: 'Connected: adb-device-02 (IQ4)',
+        statusColor: 'var(--status-online)',
+        dotClass: 'status-dot pulsing',
+        station: 'CALIBRATION_02',
+        pcasn: 'QB94190044120',
+        syssn: 'QP4B99182341',
+        syspn: '900-11200-0004',
+        lcmpn: 'LCM-TIANMA-94-A1',
+        lcmpnWarning: false,
+        imei: '864102948172635',
+        cpu: 'MPSS.AT.2.0-00182'
+      },
+      OFFLINE: {
+        model: 'DUT',
+        sub: 'WAIT ADB',
+        bg: 'var(--accent-offline)',
+        status: 'Chờ kết nối thiết bị DUT (Waiting for ADB)...',
+        statusColor: 'var(--status-offline)',
+        dotClass: 'status-dot',
+        station: 'OFFLINE',
+        pcasn: 'N/A',
+        syssn: 'N/A',
+        syspn: 'N/A',
+        lcmpn: 'N/A',
+        lcmpnWarning: false,
+        imei: 'N/A',
+        cpu: 'N/A'
+      }
+    };
+
+    // Cached DOM Elements
+    const canvasContainer = document.getElementById('canvas-container');
+    const bubbleRoot = document.getElementById('bubble-root');
+    const mainBubble = document.getElementById('main-bubble');
+    const bubbleName = document.getElementById('bubble-name');
+    const bubbleSub = document.getElementById('bubble-sub');
+    const bubbleStatusDot = document.getElementById('bubble-status-dot');
+    const bubbleStation = document.getElementById('bubble-station');
+    const cardsContainer = document.getElementById('cards-container');
+    const cornerTag = document.getElementById('corner-tag');
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-msg');
+    const animStatusBadge = document.getElementById('anim-status-badge');
+
+    const valPcasn = document.getElementById('val-pcasn');
+    const valSyssn = document.getElementById('val-syssn');
+    const valSyspn = document.getElementById('val-syspn');
+    const valLcmpn = document.getElementById('val-lcmpn');
+    const valImei = document.getElementById('val-imei');
+    const valCpu = document.getElementById('val-cpu');
+    const badgeModel = document.getElementById('badge-model');
+    const cardLcmpn = document.getElementById('card-lcmpn');
+    const barStatusText = document.getElementById('bar-status-text');
+    const barDot = document.getElementById('bar-dot');
+
+    const infoCards = Array.from(document.querySelectorAll('.info-card'));
+
+    // Geometry Cache to avoid layout thrashing during animation
+    let cachedCanvasRect = { left: 0, top: 0, width: 0, height: 0 };
+    let cachedBubbleX = 0;
+    let cachedBubbleY = 0;
+    let cachedCardsPos = [];
+
+    function refreshGeometryCache() {
+      const crect = canvasContainer.getBoundingClientRect();
+      cachedCanvasRect.left = crect.left;
+      cachedCanvasRect.top = crect.top;
+      cachedCanvasRect.width = crect.width;
+      cachedCanvasRect.height = crect.height;
+
+      const brect = bubbleRoot.getBoundingClientRect();
+      cachedBubbleX = brect.left - cachedCanvasRect.left;
+      cachedBubbleY = brect.top - cachedCanvasRect.top;
+
+      cachedCardsPos = infoCards.map(card => {
+        const cr = card.getBoundingClientRect();
+        return {
+          left: cr.left - cachedCanvasRect.left,
+          right: cr.right - cachedCanvasRect.left,
+          centerY: (cr.top + cr.height * 0.5) - cachedCanvasRect.top
+        };
+      });
+    }
+
+    // Apply data values into DOM
+    function applyData(stateKey) {
+      const data = mockData[stateKey];
+      bubbleName.textContent = data.model;
+      bubbleSub.textContent = data.sub;
+      mainBubble.style.background = data.bg;
+      bubbleStation.textContent = data.station;
+      bubbleStation.style.display = stateKey === 'OFFLINE' ? 'none' : 'block';
+
+      bubbleStatusDot.className = data.dotClass;
+      bubbleStatusDot.style.background = data.statusColor;
+      barDot.style.background = data.statusColor;
+      barStatusText.textContent = data.status;
+
+      valPcasn.textContent = data.pcasn;
+      badgeModel.textContent = data.model === 'DUT' ? 'N/A' : data.model;
+      valSyssn.textContent = data.syssn;
+      valSyspn.textContent = data.syspn;
+      valLcmpn.textContent = data.lcmpn;
+      valImei.textContent = data.imei;
+      valCpu.textContent = data.cpu;
+    }
+
+    // ==========================================
+    // ULTRA-FAST ZERO-ALLOCATION WIRE RENDERER
+    // ==========================================
+    function drawWires() {
+      if (!isExpanded) {
+        for (let i = 0; i < 6; i++) {
+          wirePaths[i].setAttribute('d', '');
+          wireDots[i].style.opacity = '0';
+        }
+        wireHubDot.style.opacity = '0';
+        return;
+      }
+
+      const bubbleRadius = 33;
+      const bxCenter = cachedBubbleX + bubbleRadius;
+      const byCenter = cachedBubbleY + bubbleRadius;
+
+      const bxAnchor = horizontalDir === 'left' ? cachedBubbleX : (cachedBubbleX + 66);
+      const byAnchor = byCenter;
+
+      let hasVisibleWires = false;
+
+      for (let i = 0; i < 6; i++) {
+        const growth = wireGrowth[i];
+        const pathEl = wirePaths[i];
+        const dotEl = wireDots[i];
+
+        if (growth <= 0.005) {
+          pathEl.setAttribute('d', '');
+          dotEl.style.opacity = '0';
+          continue;
+        }
+
+        hasVisibleWires = true;
+        const cardPos = cachedCardsPos[i];
+        if (!cardPos) continue;
+
+        const cxTarget = horizontalDir === 'left' ? cardPos.right : cardPos.left;
+        const cyTarget = cardPos.centerY;
+
+        const currentCx = bxAnchor + (cxTarget - bxAnchor) * growth;
+        const currentCy = byAnchor + (cyTarget - byAnchor) * growth;
+
+        const deltaX = currentCx - bxAnchor;
+        const deltaY = currentCy - byAnchor;
+
+        const cp1x = bxAnchor + deltaX * 0.45;
+        const cp1y = byAnchor + deltaY * 0.15;
+        const cp2x = bxAnchor + deltaX * 0.65;
+        const cp2y = currentCy;
+
+        // Direct string mutation without garbage creation
+        pathEl.setAttribute('d', `M ${bxAnchor} ${byAnchor} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${currentCx} ${currentCy}`);
+        
+        dotEl.setAttribute('cx', currentCx);
+        dotEl.setAttribute('cy', currentCy);
+        dotEl.style.opacity = '1';
+      }
+
+      if (hasVisibleWires) {
+        wireHubDot.setAttribute('cx', bxAnchor);
+        wireHubDot.setAttribute('cy', byAnchor);
+        wireHubDot.style.opacity = '1';
+      } else {
+        wireHubDot.style.opacity = '0';
+      }
+    }
+
+    // ==========================================
+    // SPROUT ANIMATION WITH CANCELABLE TICKER
+    // ==========================================
+    function triggerConnect(model = 'IQ5') {
+      if (currentAnimFrame) cancelAnimationFrame(currentAnimFrame);
+      isAnimating = true;
+      isConnected = true;
+      currentModel = model;
+
+      document.getElementById('btn-iq5').classList.toggle('active', model === 'IQ5');
+      document.getElementById('btn-iq4').classList.toggle('active', model === 'IQ4');
+      document.getElementById('btn-offline').classList.remove('active');
+
+      animStatusBadge.textContent = `GPU Render: MỌC DÂY (${model})`;
+      animStatusBadge.style.color = '#10b981';
+
+      mainBubble.classList.add('bubble-pulse-in');
+      setTimeout(() => mainBubble.classList.remove('bubble-pulse-in'), 450);
+      applyData(model);
+
+      cardsContainer.style.display = 'flex';
+      refreshGeometryCache();
+
+      const startTime = performance.now();
+      const duration = 360;
+
+      function animateSprout(now) {
+        const elapsed = now - startTime;
+        let allDone = true;
+
+        for (let i = 0; i < 6; i++) {
+          const wireStartDelay = i * 40;
+          const wireElapsed = Math.max(0, elapsed - wireStartDelay);
+          const progress = Math.min(1, wireElapsed / (duration - 80));
+
+          wireGrowth[i] = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+
+          if (progress < 1) allDone = false;
+
+          if (progress >= 0.55) {
+            const card = infoCards[i];
+            if (card.classList.contains('card-hidden')) {
+              card.classList.remove('card-hidden');
+              card.classList.add('card-visible');
+            }
+          }
+        }
+
+        drawWires();
+
+        if (!allDone) {
+          currentAnimFrame = requestAnimationFrame(animateSprout);
+        } else {
+          isAnimating = false;
+          currentAnimFrame = null;
+          animStatusBadge.textContent = `GPU Render: ĐÃ KẾT NỐI (${model})`;
+          refreshGeometryCache();
+          drawWires();
+        }
+      }
+
+      currentAnimFrame = requestAnimationFrame(animateSprout);
+    }
+
+    // ==========================================
+    // RETRACT ANIMATION WITH CANCELABLE TICKER
+    // ==========================================
+    function triggerDisconnect() {
+      if (currentAnimFrame) cancelAnimationFrame(currentAnimFrame);
+      isAnimating = true;
+      isConnected = false;
+
+      document.getElementById('btn-iq5').classList.remove('active');
+      document.getElementById('btn-iq4').classList.remove('active');
+      document.getElementById('btn-offline').classList.add('active');
+
+      animStatusBadge.textContent = 'GPU Render: THU GỌN DÂY';
+      animStatusBadge.style.color = '#ef4444';
+
+      infoCards.forEach((card, idx) => {
+        setTimeout(() => {
+          card.classList.remove('card-visible');
+          card.classList.add('card-hidden');
+        }, idx * 22);
+      });
+
+      const startTime = performance.now();
+      const duration = 260;
+
+      function animateRetract(now) {
+        const elapsed = now - startTime;
+        let allDone = true;
+
+        for (let i = 0; i < 6; i++) {
+          const wireStartDelay = i * 20;
+          const wireElapsed = Math.max(0, elapsed - wireStartDelay);
+          const progress = Math.min(1, wireElapsed / (duration - 60));
+
+          wireGrowth[i] = 1 - (progress * progress * progress); // 1 - easeInCubic
+
+          if (progress < 1) allDone = false;
+        }
+
+        drawWires();
+
+        if (!allDone) {
+          currentAnimFrame = requestAnimationFrame(animateRetract);
+        } else {
+          isAnimating = false;
+          currentAnimFrame = null;
+          applyData('OFFLINE');
+          animStatusBadge.textContent = 'GPU Render: BONG BÓNG THU GỌN';
+          drawWires();
+        }
+      }
+
+      currentAnimFrame = requestAnimationFrame(animateRetract);
+    }
+
+    // Auto Simulation Loop
+    function toggleAutoSimulate() {
+      const btn = document.getElementById('btn-auto');
+      if (autoSimTimer) {
+        clearInterval(autoSimTimer);
+        autoSimTimer = null;
+        btn.classList.remove('active');
+        btn.textContent = '🔄 Lặp thử';
+      } else {
+        btn.classList.add('active');
+        btn.textContent = '⏸️ Đang lặp...';
+        let toggleState = false;
+        autoSimTimer = setInterval(() => {
+          if (toggleState) {
+            triggerConnect(Math.random() > 0.5 ? 'IQ5' : 'IQ4');
+          } else {
+            triggerDisconnect();
+          }
+          toggleState = !toggleState;
+        }, 3000);
+      }
+    }
+
+    // Set Theme
+    function setTheme(theme) {
+      document.body.setAttribute('data-theme', theme);
+      document.querySelectorAll('.top-controls .btn-group:last-child .btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      drawWires();
+    }
+
+    // Snap to 4 Predefined Corners
+    function snapToCorner(cornerKey) {
+      ['br', 'bl', 'tr', 'tl'].forEach(k => {
+        const b = document.getElementById(`snap-${k}`);
+        if (b) b.classList.remove('active');
+      });
+      const activeBtn = document.getElementById(`snap-${cornerKey.toLowerCase()}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const canvasW = canvasContainer.clientWidth;
+      const canvasH = canvasContainer.clientHeight;
+      const margin = 28;
+      const bubbleSize = 66;
+
+      let targetX, targetY;
+
+      if (cornerKey === 'BR') {
+        targetX = canvasW - bubbleSize - margin;
+        targetY = canvasH - bubbleSize - margin - 20;
+      } else if (cornerKey === 'BL') {
+        targetX = margin;
+        targetY = canvasH - bubbleSize - margin - 20;
+      } else if (cornerKey === 'TR') {
+        targetX = canvasW - bubbleSize - margin;
+        targetY = margin + 10;
+      } else if (cornerKey === 'TL') {
+        targetX = margin;
+        targetY = margin + 10;
+      }
+
+      bubbleRoot.style.left = `${targetX}px`;
+      bubbleRoot.style.top = `${targetY}px`;
+
+      updateLayoutOrientation(targetX, targetY);
+    }
+
+    // Orientation updates with batch DOM reads
+    function updateLayoutOrientation(bx, by) {
+      const canvasW = canvasContainer.clientWidth;
+      const canvasH = canvasContainer.clientHeight;
+      const cardWidth = 280;
+      const bubbleSize = 66;
+      const wireGap = 50;
+
+      if (bx > canvasW * 0.5) {
+        horizontalDir = 'left';
+        cardsContainer.className = 'cards-left-mode';
+      } else {
+        horizontalDir = 'right';
+        cardsContainer.className = 'cards-right-mode';
+      }
+
+      if (by > canvasH * 0.5) {
+        verticalDir = 'above';
+      } else {
+        verticalDir = 'below';
+      }
+
+      let cardX, cardY;
+
+      if (horizontalDir === 'left') {
+        cardX = bx - cardWidth - wireGap;
+        cardX = Math.max(16, cardX);
+      } else {
+        cardX = bx + bubbleSize + wireGap;
+        cardX = Math.min(canvasW - cardWidth - 16, cardX);
+      }
+
+      const totalCardsHeight = 6 * 35;
+
+      if (verticalDir === 'above') {
+        cardY = (by + bubbleSize) - totalCardsHeight;
+        cardY = Math.max(16, cardY);
+      } else {
+        cardY = by;
+        cardY = Math.min(canvasH - totalCardsHeight - 16, cardY);
+      }
+
+      cardsContainer.style.left = `${cardX}px`;
+      cardsContainer.style.top = `${cardY}px`;
+
+      // Update Card Anchors visibility
+      infoCards.forEach(card => {
+        const leftAnchor = card.querySelector('.anchor-left');
+        const rightAnchor = card.querySelector('.anchor-right');
+        if (horizontalDir === 'left') {
+          leftAnchor.style.opacity = '0';
+          rightAnchor.style.opacity = '1';
+        } else {
+          leftAnchor.style.opacity = '1';
+          rightAnchor.style.opacity = '0';
+        }
+      });
+
+      cornerTag.style.display = 'block';
+      cornerTag.textContent = `Vị trí: ${horizontalDir === 'left' ? 'Dây Trái' : 'Dây Phải'} • ${verticalDir === 'above' ? 'Xếp Trên' : 'Xếp Dưới'}`;
+      cornerTag.style.left = `${bx - 10}px`;
+      cornerTag.style.top = `${by - 24}px`;
+
+      refreshGeometryCache();
+      drawWires();
+    }
+
+    // Toggle Fold / Unfold
+    function toggleExpand() {
+      if (isConnected) {
+        triggerDisconnect();
+      } else {
+        triggerConnect(currentModel || 'IQ5');
+      }
+    }
+
+    mainBubble.addEventListener('click', () => {
+      if (!isDragging) {
+        toggleExpand();
+      }
+    });
+
+    // Copy to Clipboard with Toast
+    function copyCard(key) {
+      const valEl = document.getElementById(`val-${key.toLowerCase()}`);
+      if (!valEl) return;
+      const text = valEl.textContent;
+      if (text === 'N/A' || text.includes('Đang đọc')) return;
+
+      navigator.clipboard.writeText(text).then(() => {
+        toastMsg.textContent = `Đã sao chép ${key}: ${text}`;
+        toast.classList.add('show');
+        setTimeout(() => {
+          toast.classList.remove('show');
+        }, 1800);
+      });
+    }
+
+    // Hover Highlight with instant wire highlight
+    infoCards.forEach((card, idx) => {
+      card.addEventListener('mouseenter', () => {
+        wirePaths[idx].classList.add('highlighted');
+      }, { passive: true });
+
+      card.addEventListener('mouseleave', () => {
+        wirePaths[idx].classList.remove('highlighted');
+      }, { passive: true });
+    });
+
+    // Drag and Drop Logic with RAF Throttling
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let initialBubbleX = 0;
+    let initialBubbleY = 0;
+    let dragRafPending = false;
+    let pendingDragX = 0;
+    let pendingDragY = 0;
+
+    bubbleRoot.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      refreshGeometryCache();
+      initialBubbleX = cachedBubbleX;
+      initialBubbleY = cachedBubbleY;
+      bubbleRoot.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+
+      pendingDragX = initialBubbleX + dx;
+      pendingDragY = initialBubbleY + dy;
+
+      if (!dragRafPending) {
+        dragRafPending = true;
+        requestAnimationFrame(() => {
+          const canvasW = cachedCanvasRect.width;
+          const canvasH = cachedCanvasRect.height;
+          const bubbleSize = 66;
+
+          const newX = Math.max(10, Math.min(canvasW - bubbleSize - 10, pendingDragX));
+          const newY = Math.max(10, Math.min(canvasH - bubbleSize - 10, pendingDragY));
+
+          bubbleRoot.style.left = `${newX}px`;
+          bubbleRoot.style.top = `${newY}px`;
+
+          updateLayoutOrientation(newX, newY);
+          dragRafPending = false;
+        });
+      }
+    }, { passive: true });
+
+    window.addEventListener('pointerup', () => {
+      if (isDragging) {
+        setTimeout(() => { isDragging = false; }, 60);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      refreshGeometryCache();
+      updateLayoutOrientation(cachedBubbleX, cachedBubbleY);
+    }, { passive: true });
+
+    // Initial Setup in Bottom-Right Corner
+    setTimeout(() => {
+      snapToCorner('BR');
+      triggerConnect('IQ5');
+    }, 50);
+  </script>
+</body>
+</html>

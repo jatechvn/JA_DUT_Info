@@ -153,11 +153,11 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
-  // Calculate bottom right position of primary screen work area (above taskbar)
+  // Calculate bottom right position of primary screen work area (flush against edge)
   RECT work_area;
   SystemParametersInfo(SPI_GETWORKAREA, 0, &work_area, 0);
-  int x = work_area.right - Scale(size.width, scale_factor) - 20;
-  int y = work_area.bottom - Scale(size.height, scale_factor) - 20;
+  int x = work_area.right - Scale(size.width, scale_factor);
+  int y = work_area.bottom - Scale(size.height, scale_factor);
 
   HWND window = CreateWindowEx(
       WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
@@ -238,6 +238,37 @@ Win32Window::MessageHandler(HWND hwnd,
         SetFocus(child_content_);
       }
       return 0;
+
+    case WM_MOVING: {
+      RECT* pRect = reinterpret_cast<RECT*>(lparam);
+      if (pRect) {
+        HMONITOR hMon = MonitorFromRect(pRect, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO mi = { sizeof(MONITORINFO) };
+        GetMonitorInfo(hMon, &mi);
+
+        int win_w = pRect->right - pRect->left;
+        int win_h = pRect->bottom - pRect->top;
+
+        // Strictly prevent window from exceeding screen work area boundaries
+        if (pRect->left < mi.rcWork.left) {
+          pRect->left = mi.rcWork.left;
+          pRect->right = pRect->left + win_w;
+        }
+        if (pRect->right > mi.rcWork.right) {
+          pRect->right = mi.rcWork.right;
+          pRect->left = pRect->right - win_w;
+        }
+        if (pRect->top < mi.rcWork.top) {
+          pRect->top = mi.rcWork.top;
+          pRect->bottom = pRect->top + win_h;
+        }
+        if (pRect->bottom > mi.rcWork.bottom) {
+          pRect->bottom = mi.rcWork.bottom;
+          pRect->top = pRect->bottom - win_h;
+        }
+      }
+      return TRUE;
+    }
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);

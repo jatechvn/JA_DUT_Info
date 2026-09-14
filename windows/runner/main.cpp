@@ -91,8 +91,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  // Set size to 410 x 300
-  Win32Window::Size size(410, 300);
+  // Set compact size to 440 x 335 for bubble, station pill, cards, and flowing wires
+  Win32Window::Size size(440, 335);
   if (!window.Create(L"ja_dut_info", origin, size)) {
     ::ReleaseMutex(hMutex);
     ::CloseHandle(hMutex);
