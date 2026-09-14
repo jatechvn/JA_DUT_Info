@@ -1,28 +1,36 @@
-# 💬 JA DUT Info — Dynamic Click-Through & QQ Edge Docking Edition (v2.1.0)
+# 💬 JA DUT Info — Tilted Wire Station & Edge Docking Edition (v2.2.0)
 
-> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Dây kết nối Bézier động**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click xuyên qua toàn bộ khoảng trống xuống ứng dụng nền.
+> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click xuyên qua toàn bộ khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.1.0-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.2.0-10B981)](#)
 
 ---
 
 ## 🌟 Điểm Nổi Bật & Tính Năng
 
-### 1. 🖱️ Click Chuột Xuyên Khoảng Trống (Per-Region Click-Through via Win32)
+### 1. 🏷️ Nhãn Station Nghiêng Theo Dây Khi Ẩn Mép (Tilted Wire Station Badge)
+- **Không bao giờ bị khuất tên trạm khi docking mép màn hình:**
+  - Khi quả cầu thụt vào mép 80%, nhãn Station (`_WireStationBadge`) tự động chuyển vị trí ra chính giữa đoạn dây cong Bézier nối từ quả cầu đến thẻ đầu tiên.
+  - Chữ nghiêng mượt mà theo góc tiếp tuyến đạo hàm $\theta = \operatorname{atan2}(dy, dx)$ và tự động chuẩn hóa $[-\frac{\pi}{2}, \frac{\pi}{2}]$ đảm bảo chữ không bao giờ bị lộn ngược đầu ở cả 4 góc (`BR`, `BL`, `TR`, `TL`).
+  - Đẩy theo vector pháp tuyến $\vec{n}$ ra vùng thoáng phía trên/dưới dây, tạo dáng sticker phát sáng bóng bẩy.
+  - Bấm vào nhãn Station để sao chép nhanh tên trạm vào Clipboard kèm thông báo Toast.
+  - Khi rê chuột vào tab mép màn hình, nhãn Station tự động trượt và mờ dần (`AnimatedOpacity` 220ms) trở về vị trí pill quen thuộc cạnh quả cầu.
+
+### 2. 🖱️ Click Chuột Xuyên Khoảng Trống (Per-Region Click-Through via Win32)
 - **Tương tác xuyên thấu xuống ứng dụng nền:**
   - Nhờ cơ chế chuyển đổi động `WS_EX_TRANSPARENT` kết hợp Hook chuột mức thấp `WH_MOUSE_LL` (Win32) và Timer 50 FPS, toàn bộ vùng trống trong suốt quanh widget cho phép click, bôi đen văn bản, cuộn chuột xuyên thẳng xuống Telegram, IDE, trình duyệt với **độ trễ 0ms** và **0% CPU**.
-  - Các vùng nhận chuột (Quả cầu tròn, từng thẻ thông số, station pill, menu chuột phải, toast) vẫn giữ tính tương tác 100%.
+  - Các vùng nhận chuột (Quả cầu tròn, từng thẻ thông số, nhãn station trên dây, menu chuột phải, toast) vẫn giữ tính tương tác 100%.
 
-### 2. 🛡️ Ẩn Mép 80% Kiểu QQ Guardian & Tab Lưỡi Liềm Phát Sáng
+### 3. 🛡️ Ẩn Mép 80% Kiểu QQ Guardian & Tab Lưỡi Liềm Phát Sáng
 - **Nép mép màn hình gọn gàng:**
   - Khi người dùng đẩy widget sát vào mép trái/phải màn hình, quả cầu tự động thụt vào mép 80%, chỉ để lại một **tab lưỡi liềm phát sáng 25px** kèm đèn LED xung nhịp.
   - Các thẻ thông tin tự động ép sát vào mép màn hình, dây trục dọc uốn chữ S mềm mại nối từ tab mép vào thẻ.
   - **Hover mở rộng ổn định:** Tích hợp `BubbleHoverRegion` độc lập giúp việc di chuột vào tab mép mở rộng quả cầu ra ngoài mà không bị giật hay rung viền.
 
-### 3. 📐 Tự Động Thích Ứng 4 Góc & Bám Sát Taskbar (Dynamic Corner Adaptation)
+### 4. 📐 Tự Động Thích Ứng 4 Góc & Bám Sát Taskbar (Dynamic Corner Adaptation)
 - **Góc Dưới (`BL`, `BR`):** Quả cầu nằm ở trên, các thẻ thông tin ở dưới bám sát ngay trên thanh Windows Taskbar (`startY = 115px`, đáy thẻ cuối cùng cách mép Taskbar đúng 10px).
 - **Góc Trên (`TL`, `TR`):** Tự động đảo ngược trọng tâm — các thẻ thông số chuyển lên trên bám sát mép trên màn hình (`startY = 10px`), quả cầu chuyển xuống dưới (`actualBubbleTop = 256px`), trục dây dẫn đổi hướng vươn ngược từ đáy lên trên.
 - **Huy hiệu Trạm (Station Pill):** Tự động đảo vị trí phía trên/dưới quả cầu tương ứng.

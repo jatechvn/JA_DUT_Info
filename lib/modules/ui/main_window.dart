@@ -72,6 +72,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     required double startY,
     required double cardWidth,
     required int cardCount,
+    Rect? wireStationHitRect,
   }) {
     if (!Platform.isWindows) return;
 
@@ -98,6 +99,16 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
             'h': 30.0,
           });
         }
+      }
+
+      // Wire Station Badge Hit Rect (when docked at screen edge)
+      if (wireStationHitRect != null) {
+        rects.add({
+          'x': wireStationHitRect.left,
+          'y': wireStationHitRect.top,
+          'w': wireStationHitRect.width,
+          'h': wireStationHitRect.height,
+        });
       }
 
       // 3. Toast Notification Hit Rect (if showing)
@@ -569,11 +580,17 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     final double normalCardsLeft = _isRight ? 134.0 : 20.0;
     final double targetCardsLeft = normalCardsLeft;
 
-    // Check if Station Pill is rendered
+    // Check if Station is available
+    final bool hasStation =
+        monitor.deviceConnected && monitor.stationResult != 'N/A';
+
+    // Standard bubble station pill appears when NOT docked or when hovered/interacting
     final bool hasStationPill =
-        monitor.deviceConnected &&
-        monitor.stationResult != 'N/A' &&
-        (!isDockedCurrentSide || isInteracting);
+        hasStation && (!isDockedCurrentSide || isInteracting);
+
+    // Docked wire station badge appears when docked at screen edge and NOT hovering
+    final bool hasDockedWireStation =
+        hasStation && isDockedCurrentSide && !isInteracting;
 
     final double startY = _isBottom ? 115.0 : 10.0;
 
@@ -610,12 +627,30 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       isBottom: _isBottom,
       isDocked: isDockedCurrentSide,
     );
+
+    final targetCardY = _isBottom ? cardCenterYs.first : cardCenterYs.last;
+    final dockedStationGeom = computeLeadInWireStationGeometry(
+      bubbleAnchor: bubbleAnchor,
+      wireX: verticalWireX,
+      cardY: targetCardY,
+      isBottom: _isBottom,
+    );
+
+    final wireStationHitRect = hasDockedWireStation
+        ? Rect.fromCenter(
+            center: dockedStationGeom.position,
+            width: 70.0,
+            height: 28.0,
+          )
+        : null;
+
     _updateNativeHitTestRects(
       bubbleHoverRect: bubbleHoverRect,
       targetCardsLeft: targetCardsLeft,
       startY: startY,
       cardWidth: cardWidth,
       cardCount: keys.length,
+      wireStationHitRect: wireStationHitRect,
     );
 
     return Scaffold(
@@ -714,6 +749,32 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                 ),
               );
             }),
+
+            // 2.5. Docked Wire Station Badge (Tilted along Bézier lead-in curve)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              left: dockedStationGeom.position.dx,
+              top: dockedStationGeom.position.dy,
+              child: FractionalTranslation(
+                translation: const Offset(-0.5, -0.5),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  opacity: hasDockedWireStation ? 1.0 : 0.0,
+                  child: IgnorePointer(
+                    ignoring: !hasDockedWireStation,
+                    child: _WireStationBadge(
+                      stationText: monitor.stationResult,
+                      angle: dockedStationGeom.angle,
+                      isDark: theme.isDark,
+                      onTap: () =>
+                          _copyToClipboard('STATION', monitor.stationResult),
+                    ),
+                  ),
+                ),
+              ),
+            ),
 
             // 3. Floating Messenger Chathead Bubble with QQ Guardian Edge Docking
             AnimatedPositioned(
@@ -1042,6 +1103,78 @@ class _StationPill extends StatelessWidget {
                 fontFamily: 'JetBrains Mono',
                 fontWeight: FontWeight.w800,
                 color: Color(0xFF042F2E),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tilted Wire Station Badge Widget (Docked Edge Mode)
+// ---------------------------------------------------------------------------
+class _WireStationBadge extends StatelessWidget {
+  final String stationText;
+  final double angle;
+  final bool isDark;
+  final VoidCallback? onTap;
+
+  const _WireStationBadge({
+    required this.stationText,
+    required this.angle,
+    required this.isDark,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: angle,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF0F172A).withValues(alpha: 0.94)
+                  : Colors.white.withValues(alpha: 0.96),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF38BDF8).withValues(alpha: 0.9)
+                    : const Color(0xFF0084FF).withValues(alpha: 0.8),
+                width: 1.4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: (isDark
+                          ? const Color(0xFF38BDF8)
+                          : const Color(0xFF0084FF))
+                      .withValues(alpha: 0.4),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+                BoxShadow(
+                  color: (isDark ? Colors.black : Colors.white)
+                      .withValues(alpha: 0.6),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+            child: Text(
+              stationText,
+              style: TextStyle(
+                fontSize: 10.0,
+                fontFamily: 'JetBrains Mono',
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+                color: isDark
+                    ? const Color(0xFF38BDF8)
+                    : const Color(0xFF0084FF),
               ),
             ),
           ),

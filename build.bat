@@ -5,6 +5,9 @@ title Build Release Packager
 set WORKSPACE_DIR=%~dp0
 cd /d "%WORKSPACE_DIR%"
 
+set APP_NAME=JA_DUT_Info
+set VERSION=2.2.0
+
 taskkill /IM ja_dut_info.exe /F 2>nul
 echo [BUILD] Compiling Windows desktop application in Release mode...
 call flutter build windows --release
@@ -34,10 +37,10 @@ mkdir dist
 xcopy /e /i /y /q %REL%\*.* dist\
 
 if exist "dist_pack" rmdir /s /q "dist_pack"
-mkdir "dist_pack\JA_DUT_Info_v2.1.0_Windows_x64"
-xcopy /e /i /y /q "dist\*.*" "dist_pack\JA_DUT_Info_v2.1.0_Windows_x64\"
-powershell -Command "Compress-Archive -Path 'dist_pack\*' -DestinationPath 'dist\JA_DUT_Info_v2.1.0_Windows_x64.zip' -Force"
+mkdir "dist_pack\%APP_NAME%_v%VERSION%_Windows_x64"
+xcopy /e /i /y /q "dist\*.*" "dist_pack\%APP_NAME%_v%VERSION%_Windows_x64\"
+powershell -Command "Compress-Archive -Path 'dist_pack\*' -DestinationPath 'dist\%APP_NAME%_v%VERSION%_Windows_x64.zip' -Force"
 if exist "dist_pack" rmdir /s /q "dist_pack"
 
-echo [SUCCESS] Release packaged at dist\JA_DUT_Info_v2.1.0_Windows_x64.zip
+echo [SUCCESS] Release packaged at dist\%APP_NAME%_v%VERSION%_Windows_x64.zip
 pause

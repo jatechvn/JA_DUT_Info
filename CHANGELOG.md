@@ -4,6 +4,22 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+## [2.2.0] - 2026-09-14 — *Tilted Wire Station & Edge Docking Edition*
+
+### 🚀 Major Features & Enhancements
+- **Tilted Wire Station Badge on Edge Docking:**
+  - When the bubble is docked 80% into the monitor edge, instead of hiding the station result, the Station label (`_WireStationBadge`) is dynamically positioned at the parametric midpoint ($t = 0.48$) of the curved lead-in Bézier wire connecting the bubble to the first/target card.
+  - Rotates along the wire's tangent derivative angle $\theta = \operatorname{atan2}(dy, dx)$, normalized to $[-\frac{\pi}{2}, \frac{\pi}{2}]$ so text is always right-side-up and readable from left to right.
+  - Positioned along the normal vector $\vec{n} = \frac{(-dy, dx)}{\|(dx, dy)\|}$ into the open convex space (above wire for bottom corners `BL`/`BR`, below wire for top corners `TL`/`TR`), preventing wire collision.
+- **Sticker Aesthetic & Interaction:**
+  - Designed as a glossy sticker pill: white/frosted background in light mode with electric blue border and text (`#0084FF`), slate-900 with neon cyan (`#38BDF8`) in dark mode.
+  - Tapping the wire station badge copies the station string to the clipboard with toast feedback.
+  - Transparent click-through is preserved around the badge via dedicated native hit-test rect registration.
+- **Smooth Cross-Fade Hover Transitions:**
+  - Moving the cursor onto the edge crescent tab expands the bubble into full view, smoothly cross-fading the wire station badge into the traditional bubble station pill via `AnimatedOpacity` (220ms) and `AnimatedPositioned` (260ms).
+
+---
+
 ## [2.1.0] - 2026-09-14 — *Dynamic Click-Through & QQ Edge Docking Edition*
 
 ### 🚀 Major Features & Enhancements

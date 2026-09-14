@@ -69,4 +69,40 @@ void main() {
       });
     }
   }
+
+  test('computeLeadInWireStationGeometry produces upright angle and offset in 4 corners', () {
+    for (final right in [false, true]) {
+      for (final bottom in [false, true]) {
+        final bubbleAnchor = Offset(
+          right ? 427.0 : 13.0,
+          bottom ? 43.0 : 289.0,
+        );
+        final wireX = right ? 387.0 : 53.0;
+        final cardY = bottom ? 130.0 : 220.0;
+
+        final geom = computeLeadInWireStationGeometry(
+          bubbleAnchor: bubbleAnchor,
+          wireX: wireX,
+          cardY: cardY,
+          isBottom: bottom,
+        );
+
+        // Verify angle is readable (-pi/2 <= angle <= pi/2)
+        expect(geom.angle, greaterThanOrEqualTo(-3.14159265 / 2));
+        expect(geom.angle, lessThanOrEqualTo(3.14159265 / 2));
+
+        // Verify position is within window bounds and not NaN
+        expect(geom.position.dx.isFinite, isTrue);
+        expect(geom.position.dy.isFinite, isTrue);
+
+        // When bottom, open space is above wire (normal.dy < 0)
+        // When !bottom, open space is below wire (normal.dy > 0)
+        if (bottom) {
+          expect(geom.normal.dy, lessThanOrEqualTo(0.0));
+        } else {
+          expect(geom.normal.dy, greaterThanOrEqualTo(0.0));
+        }
+      }
+    }
+  });
 }
