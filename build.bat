@@ -6,7 +6,7 @@ set WORKSPACE_DIR=%~dp0
 cd /d "%WORKSPACE_DIR%"
 
 set APP_NAME=JA_DUT_Info
-set VERSION=2.2.0
+set VERSION=2.2.1
 
 taskkill /IM ja_dut_info.exe /F 2>nul
 echo [BUILD] Compiling Windows desktop application in Release mode...
@@ -43,4 +43,3 @@ powershell -Command "Compress-Archive -Path 'dist_pack\*' -DestinationPath 'dist
 if exist "dist_pack" rmdir /s /q "dist_pack"
 
 echo [SUCCESS] Release packaged at dist\%APP_NAME%_v%VERSION%_Windows_x64.zip
-pause

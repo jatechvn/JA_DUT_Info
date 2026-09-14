@@ -73,6 +73,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     required double cardWidth,
     required int cardCount,
     Rect? wireStationHitRect,
+    Rect? toastHitRect,
   }) {
     if (!Platform.isWindows) return;
 
@@ -112,12 +113,12 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       }
 
       // 3. Toast Notification Hit Rect (if showing)
-      if (_showToast) {
+      if (toastHitRect != null) {
         rects.add({
-          'x': 6.0,
-          'y': _isBottom ? 6.0 : 286.0,
-          'w': 240.0,
-          'h': 40.0,
+          'x': toastHitRect.left,
+          'y': toastHitRect.top,
+          'w': toastHitRect.width,
+          'h': toastHitRect.height,
         });
       }
     }
@@ -644,6 +645,16 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
           )
         : null;
 
+    final double toastLeft = _isRight
+        ? ((isDockedCurrentSide && !isInteracting) ? 230.0 : 175.0)
+        : ((isDockedCurrentSide && !isInteracting) ? 45.0 : 100.0);
+
+    final double toastTop = _isBottom ? 26.0 : 275.0;
+
+    final toastHitRect = _showToast
+        ? Rect.fromLTWH(toastLeft, toastTop, 180.0, 32.0)
+        : null;
+
     _updateNativeHitTestRects(
       bubbleHoverRect: bubbleHoverRect,
       targetCardsLeft: targetCardsLeft,
@@ -651,6 +662,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       cardWidth: cardWidth,
       cardCount: keys.length,
       wireStationHitRect: wireStationHitRect,
+      toastHitRect: toastHitRect,
     );
 
     return Scaffold(
@@ -986,60 +998,68 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
             ),
 
             // Toast Notification
-            if (_showToast)
-              Positioned(
-                top: _isBottom ? 10 : null,
-                bottom: _isBottom ? null : 10,
-                left: 10,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.95),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: const Color(0xFF10B981),
-                          width: 1,
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              top: toastTop,
+              left: toastLeft,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                opacity: _showToast ? 1.0 : 0.0,
+                child: IgnorePointer(
+                  ignoring: !_showToast,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF10B981,
-                            ).withValues(alpha: 0.3),
-                            blurRadius: 8,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFF10B981),
+                            width: 1,
                           ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.check_circle,
-                            size: 12,
-                            color: Color(0xFF10B981),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            _toastMessage,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              fontFamily: 'Outfit',
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF10B981,
+                              ).withValues(alpha: 0.3),
+                              blurRadius: 8,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle,
+                              size: 12,
+                              color: Color(0xFF10B981),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _toastMessage,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                fontFamily: 'Outfit',
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),

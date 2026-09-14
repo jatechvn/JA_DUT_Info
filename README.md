@@ -1,11 +1,11 @@
-# 💬 JA DUT Info — Tilted Wire Station & Edge Docking Edition (v2.2.0)
+# 💬 JA DUT Info — Adaptive Toast & Precision Docking Edition (v2.2.1)
 
-> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click xuyên qua toàn bộ khoảng trống xuống ứng dụng nền.
+> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Nhãn Station nghiêng theo đường cong dây**, **Toast thông báo căn chỉnh thông minh**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click xuyên qua toàn bộ khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.2.0-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.2.1-10B981)](#)
 
 ---
 

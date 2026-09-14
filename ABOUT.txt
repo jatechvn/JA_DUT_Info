@@ -2,7 +2,7 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.2.0 (Tilted Wire Station & Edge Docking Edition)
+Version      : v2.2.1 (Adaptive Toast & Precision Docking Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/
@@ -10,6 +10,7 @@ Website      : https://jatechvn.github.io/
 Description  : Ultra-lightweight floating desktop widget displaying Device 
                Under Test (DUT) hardware parameters with QQ Guardian 80% 
                edge docking, tilted wire station badge along Bézier curves, 
-               dynamic 4-corner auto-adaptation, Taskbar snugging, and 
-               per-region transparent mouse click-through to background apps.
+               adaptive toast notification alignment, dynamic 4-corner 
+               auto-adaptation, Taskbar snugging, and per-region 
+               transparent mouse click-through to underlying background apps.
 ========================================================================

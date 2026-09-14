@@ -4,6 +4,18 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+## [2.2.1] - 2026-09-14 — *Adaptive Toast Alignment & Smooth Motion Edition*
+
+### 🚀 Enhancements & Refinements
+- **Adaptive Toast Notification Alignment:**
+  - **Docked Mode:** When the bubble is tucked into the monitor edge, the copy notification toast aligns closer to the bubble (`left = 230px` on right, `45px` on left), neatly positioned directly above the card stack.
+  - **Popped-out Mode:** When the bubble expands into view upon hover, the toast smoothly slides leftward (`left = 175px` on right, `100px` on left) via `AnimatedPositioned` (260ms, `Curves.easeOutCubic`) to avoid collision and sit adjacent to the sphere.
+  - **Card Width Centering:** In both states, the toast is strictly bounded within the card column's horizontal span (`[134, 420]` for right corner), eliminating previous awkward drift to the window's far-left corner.
+- **Accurate Hit-Test Registration:**
+  - Dynamic `toastHitRect` bounding box registered with Win32 native hit-testing, keeping click-through capability 100% transparent for all surrounding empty space.
+
+---
+
 ## [2.2.0] - 2026-09-14 — *Tilted Wire Station & Edge Docking Edition*
 
 ### 🚀 Major Features & Enhancements
