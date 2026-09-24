@@ -238,7 +238,10 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: const Icon(Icons.folder_open_rounded, size: 16),
+                            icon: const Icon(
+                              Icons.folder_open_rounded,
+                              size: 16,
+                            ),
                             tooltip: 'Mở thư mục config',
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
@@ -304,7 +307,8 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(6),
                                   ),
-                                  hintText: r'\\10.81.141.226\temp\FBT\JA_PROJECT\JA_Update\JA_DUT_Info',
+                                  hintText:
+                                      r'\\10.81.141.226\temp\FBT\JA_PROJECT\JA_Update\JA_DUT_Info',
                                   hintStyle: const TextStyle(fontSize: 10),
                                 ),
                               ),
@@ -317,7 +321,8 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Tài khoản:',
@@ -344,9 +349,9 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                                           decoration: InputDecoration(
                                             contentPadding:
                                                 const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 6,
-                                            ),
+                                                  horizontal: 8,
+                                                  vertical: 6,
+                                                ),
                                             isDense: true,
                                             border: OutlineInputBorder(
                                               borderRadius:
@@ -361,7 +366,8 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Mật khẩu:',
@@ -389,9 +395,9 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                                           decoration: InputDecoration(
                                             contentPadding:
                                                 const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 6,
-                                            ),
+                                                  horizontal: 8,
+                                                  vertical: 6,
+                                                ),
                                             isDense: true,
                                             border: OutlineInputBorder(
                                               borderRadius:
@@ -438,18 +444,21 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                                       decoration: InputDecoration(
                                         contentPadding:
                                             const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
                                         border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                       ),
                                       items: const [
                                         DropdownMenuItem(
                                           value: 'daily',
-                                          child: Text('Hàng ngày (Khuyên dùng)'),
+                                          child: Text(
+                                            'Hàng ngày (Khuyên dùng)',
+                                          ),
                                         ),
                                         DropdownMenuItem(
                                           value: 'weekly',
@@ -481,7 +490,9 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                             Row(
                               children: [
                                 OutlinedButton.icon(
-                                  onPressed: _isTesting ? null : _testConnection,
+                                  onPressed: _isTesting
+                                      ? null
+                                      : _testConnection,
                                   icon: _isTesting
                                       ? const SizedBox(
                                           width: 11,
@@ -490,8 +501,8 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                                             strokeWidth: 1.5,
                                             valueColor:
                                                 AlwaysStoppedAnimation<Color>(
-                                              accentCyan,
-                                            ),
+                                                  accentCyan,
+                                                ),
                                           ),
                                         )
                                       : const Icon(
@@ -585,8 +596,9 @@ class _OtaSettingsDialogState extends State<OtaSettingsDialog> {
                                 horizontal: 12,
                                 vertical: 6,
                               ),
-                              foregroundColor:
-                                  isDark ? Colors.white70 : Colors.black87,
+                              foregroundColor: isDark
+                                  ? Colors.white70
+                                  : Colors.black87,
                             ),
                             child: const Text(
                               'Hủy',

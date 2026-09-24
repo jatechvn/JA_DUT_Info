@@ -11,16 +11,12 @@ Future<String> runCmd(List<String> cmd) async {
   try {
     final executable = cmd[0];
     final arguments = cmd.sublist(1);
-    
-    final result = await Process.run(
-      executable,
-      arguments,
-      runInShell: true,
-    );
-    
+
+    final result = await Process.run(executable, arguments, runInShell: true);
+
     final out = result.stdout.toString().trim();
     final err = result.stderr.toString().trim();
-    
+
     if (err.isNotEmpty) {
       logger.warning('STDERR: $err');
     }

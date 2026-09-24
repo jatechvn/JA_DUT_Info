@@ -6,11 +6,11 @@ import '../logger_config.dart';
 import '../utils.dart';
 
 enum PowerGStatus {
-  pass,          // RF Sensor registered & MCU OK
-  mcuOk,         // MCU ping OK, but RF transmitter not connected or RF test skipped
-  fail,          // RF test failed or MCU error
-  notInstalled,  // No PowerG daughter card installed on DUT
-  testing,       // Test currently in progress
+  pass, // RF Sensor registered & MCU OK
+  mcuOk, // MCU ping OK, but RF transmitter not connected or RF test skipped
+  fail, // RF test failed or MCU error
+  notInstalled, // No PowerG daughter card installed on DUT
+  testing, // Test currently in progress
 }
 
 class PowerGResult {
@@ -36,7 +36,7 @@ class PowerGResult {
 
   bool get isPass => status == PowerGStatus.pass;
   bool get isInstalled => status != PowerGStatus.notInstalled;
-  
+
   String get displaySummary {
     if (!isInstalled) return 'N/A - Không có card';
     if (status == PowerGStatus.pass) {
@@ -85,19 +85,26 @@ class PowerGService {
   /// Locate the standalone PowerG transmitter runner JAR
   String? _findTransmitterJarPath() {
     // 1. Current working directory assets
-    final localAsset = File('${Directory.current.path}/assets/tools/powerg/PowerGTransmitter.jar');
+    final localAsset = File(
+      '${Directory.current.path}/assets/tools/powerg/PowerGTransmitter.jar',
+    );
     if (localAsset.existsSync()) return localAsset.path;
 
     // 2. Relative to script/executable directory
     final exeDir = File(Platform.resolvedExecutable).parent.path;
-    final exeAsset = File('$exeDir/data/flutter_assets/assets/tools/powerg/PowerGTransmitter.jar');
+    final exeAsset = File(
+      '$exeDir/data/flutter_assets/assets/tools/powerg/PowerGTransmitter.jar',
+    );
     if (exeAsset.existsSync()) return exeAsset.path;
 
-    final directAsset = File('$exeDir/assets/tools/powerg/PowerGTransmitter.jar');
+    final directAsset = File(
+      '$exeDir/assets/tools/powerg/PowerGTransmitter.jar',
+    );
     if (directAsset.existsSync()) return directAsset.path;
 
     // 3. Fallback to production workspace path if present
-    const devPath = 'D:/OS-Software/OneDrive/OpenClaw_Workspace/JA_PROJECT/PROJECT_DART/JA_DUT_Info/assets/tools/powerg/PowerGTransmitter.jar';
+    const devPath =
+        'D:/OS-Software/OneDrive/OpenClaw_Workspace/JA_PROJECT/PROJECT_DART/JA_DUT_Info/assets/tools/powerg/PowerGTransmitter.jar';
     if (File(devPath).existsSync()) return devPath;
 
     return null;
@@ -106,41 +113,47 @@ class PowerGService {
   /// Scan system for PowerG Transmitter COM port
   Future<String?> findTransmitterComPort() async {
     try {
-      final res = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          "Get-CimInstance Win32_PnPEntity | Where-Object { \$_.PNPClass -eq 'Ports' -and (\$_.Name -match 'CP210' -or \$_.Name -match 'UART' -or \$_.DeviceID -match 'VID_10C4') } | Select-Object -ExpandProperty Name"
-        ],
-        runInShell: true,
-      );
+      final res = await Process.run('powershell', [
+        '-NoProfile',
+        '-Command',
+        "Get-CimInstance Win32_PnPEntity | Where-Object { \$_.PNPClass -eq 'Ports' -and (\$_.Name -match 'CP210' -or \$_.Name -match 'UART' -or \$_.DeviceID -match 'VID_10C4') } | Select-Object -ExpandProperty Name",
+      ], runInShell: true);
       final out = res.stdout.toString().trim();
       if (out.isNotEmpty) {
         final match = RegExp(r'\((COM\d+)\)').firstMatch(out);
         if (match != null) {
           final port = match.group(1);
-          logger.info('[PowerGService] Detected transmitter port: $port ($out)');
+          logger.info(
+            '[PowerGService] Detected transmitter port: $port ($out)',
+          );
           return port;
         }
       }
     } catch (e) {
-      logger.warning('[PowerGService] Failed to detect COM port via PowerShell: $e');
+      logger.warning(
+        '[PowerGService] Failed to detect COM port via PowerShell: $e',
+      );
     }
     return null;
   }
 
   /// Trigger PowerG Transmitter to broadcast a sensor registration packet
-  Future<Map<String, dynamic>> triggerTransmitter({String action = 'transmit'}) async {
+  Future<Map<String, dynamic>> triggerTransmitter({
+    String action = 'transmit',
+  }) async {
     final jarPath = _findTransmitterJarPath();
     if (jarPath == null) {
-      logger.warning('[PowerGService] PowerGTransmitter.jar not found on system');
+      logger.warning(
+        '[PowerGService] PowerGTransmitter.jar not found on system',
+      );
       return {'success': false, 'error': 'Transmitter tool not found'};
     }
 
     try {
       final jarDir = File(jarPath).parent.path;
-      logger.info('[PowerGService] Running PowerGTransmitter: java -jar "$jarPath" $action');
+      logger.info(
+        '[PowerGService] Running PowerGTransmitter: java -jar "$jarPath" $action',
+      );
       final result = await Process.run(
         'java',
         ['-jar', jarPath, action],
@@ -171,7 +184,11 @@ class PowerGService {
         } else if (trimmed.startsWith('RESULT:PING_OK')) {
           return {'success': true, 'pingOnly': true, 'raw': stdout};
         } else if (trimmed.startsWith('RESULT:NO_DEVICE')) {
-          return {'success': false, 'error': 'No transmitter device attached', 'raw': stdout};
+          return {
+            'success': false,
+            'error': 'No transmitter device attached',
+            'raw': stdout,
+          };
         }
       }
       return {'success': false, 'error': 'Unexpected response', 'raw': stdout};
@@ -191,28 +208,180 @@ class PowerGService {
   Future<PowerGResult> verifyDut(String dutSerial) async {
     logger.info('[PowerGService] Starting verification on DUT: $dutSerial');
 
-    // 1. Inspect properties on DUT
-    final cardOut = (await runCmd(['adb', '-s', dutSerial, 'shell', 'getprop', 'qolsys.powerg.card'])).trim();
-    final cardV4Out = (await runCmd(['adb', '-s', dutSerial, 'shell', 'getprop', 'qolsys.powergv4.card'])).trim();
+    // 1. Inspect properties on DUT with retry (allows time for boot & hw_discovery)
+    bool isCardInstalled = false;
+    String cardOut = '';
+    String cardV4Out = '';
+    String protocol = '';
 
-    final isCardInstalled = cardOut == '1' || cardV4Out == '1';
+    for (var attempt = 1; attempt <= 10; attempt++) {
+      cardOut = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.powerg.card',
+      ])).trim();
+      cardV4Out = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.powergv4.card',
+      ])).trim();
+      protocol = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'persist.qolsys.powergv4.protocol',
+      ])).trim();
+
+      if (cardOut == '1' || cardV4Out == '1') {
+        isCardInstalled = true;
+        break;
+      }
+
+      // If persist protocol exists (e.g. 9 or 8), card was previously detected
+      if (protocol.isNotEmpty && protocol != '0' && protocol != 'N/A') {
+        final hwdEnd = (await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'getprop',
+          'qolsys.hwd.end',
+        ])).trim();
+        if (hwdEnd != '1' && attempt == 1) {
+          logger.info(
+            '[PowerGService] Triggering hardware discovery for PowerG on $dutSerial',
+          );
+          await runCmd([
+            'adb',
+            '-s',
+            dutSerial,
+            'shell',
+            'setprop',
+            'qolsys.factory.hwd',
+            '1',
+          ]);
+        }
+      } else {
+        final hwdEnd = (await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'getprop',
+          'qolsys.hwd.end',
+        ])).trim();
+        if (hwdEnd == '1' && attempt >= 3) {
+          // Hardware discovery has completed and confirmed no PowerG card
+          break;
+        }
+      }
+
+      if (attempt < 10) {
+        await Future.delayed(const Duration(milliseconds: 1500));
+      }
+    }
+
     if (!isCardInstalled) {
-      logger.info('[PowerGService] PowerG card not installed on DUT $dutSerial');
+      logger.info(
+        '[PowerGService] PowerG card not installed on DUT $dutSerial after retries',
+      );
       return const PowerGResult(
         status: PowerGStatus.notInstalled,
         message: 'Không có card PowerG',
       );
     }
 
-    final fw = (await runCmd(['adb', '-s', dutSerial, 'shell', 'getprop', 'qolsys.powergv4.fw'])).trim();
-    final protocol = (await runCmd(['adb', '-s', dutSerial, 'shell', 'getprop', 'persist.qolsys.powergv4.protocol'])).trim();
+    // 2. Ensure powergservice is started & ready in ServiceManager
+    for (var i = 1; i <= 6; i++) {
+      final chk = await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'check',
+        'powergservice',
+      ]);
+      if (chk.contains('found')) {
+        break;
+      }
+      if (i == 1 || i == 3) {
+        logger.info(
+          '[PowerGService] Starting powergd service on $dutSerial...',
+        );
+        await runCmd(['adb', '-s', dutSerial, 'shell', 'start', 'powergd']);
+      }
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    // 3. Read firmware with retry
+    var fw = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'qolsys.powergv4.fw',
+    ])).trim();
+    if (fw.isEmpty || fw == 'N/A') {
+      for (var f = 0; f < 5; f++) {
+        await Future.delayed(const Duration(seconds: 1));
+        fw = (await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'getprop',
+          'qolsys.powergv4.fw',
+        ])).trim();
+        if (fw.isNotEmpty && fw != 'N/A') break;
+      }
+    }
+    if (protocol.isEmpty || protocol == 'N/A') {
+      protocol = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'persist.qolsys.powergv4.protocol',
+      ])).trim();
+    }
     final freqStr = mapProtocolToFrequency(protocol);
 
-    // 2. Ping MCU & Radio Check (Transact 200)
-    final pingOut = await runCmd(['adb', '-s', dutSerial, 'shell', 'service', 'call', 'powergservice', '200']);
-    final isMcuAlive = pingOut.contains('00000001') || pingOut.contains('00000100');
+    // 4. Ping MCU & Radio Check (Transact 200) with retry
+    bool isMcuAlive = false;
+    String pingOut = '';
+    for (var p = 1; p <= 3; p++) {
+      pingOut = await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'call',
+        'powergservice',
+        '200',
+      ]);
+      if (pingOut.contains('00000001') || pingOut.contains('00000100')) {
+        isMcuAlive = true;
+        break;
+      }
+      if (p < 3) await Future.delayed(const Duration(seconds: 1));
+    }
+
     if (!isMcuAlive) {
-      logger.severe('[PowerGService] MCU/Radio ping failed on $dutSerial: $pingOut');
+      logger.severe(
+        '[PowerGService] MCU/Radio ping failed on $dutSerial after retries: $pingOut',
+      );
       return PowerGResult(
         status: PowerGStatus.fail,
         fw: fw.isEmpty ? 'N/A' : fw,
@@ -224,7 +393,7 @@ class PowerGService {
     }
     logger.info('[PowerGService] MCU & Radio ping PASS on $dutSerial');
 
-    // 3. Check for external transmitter
+    // 5. Check for external transmitter
     final comPort = await findTransmitterComPort();
     if (comPort == null) {
       logger.warning('[PowerGService] Transmitter COM port not detected');
@@ -239,15 +408,48 @@ class PowerGService {
 
     // 4. Enable AutoLearn & Clear buffer on DUT
     try {
-      await runCmd(['adb', '-s', dutSerial, 'shell', 'service', 'call', 'powergservice', '2', 'i32', '1']);
-      await runCmd(['adb', '-s', dutSerial, 'shell', 'service', 'call', 'powergservice', '201']);
+      await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'call',
+        'powergservice',
+        '2',
+        'i32',
+        '1',
+      ]);
+      await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'call',
+        'powergservice',
+        '201',
+      ]);
 
       // 5. Trigger transmitter
       final transmitResult = await triggerTransmitter(action: 'transmit');
       if (!transmitResult['success']) {
-        logger.warning('[PowerGService] Transmitter trigger failed: ${transmitResult['error']}');
+        logger.warning(
+          '[PowerGService] Transmitter trigger failed: ${transmitResult['error']}',
+        );
         // Disable AutoLearn
-        await runCmd(['adb', '-s', dutSerial, 'shell', 'service', 'call', 'powergservice', '2', 'i32', '0']);
+        await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'service',
+          'call',
+          'powergservice',
+          '2',
+          'i32',
+          '0',
+        ]);
         return PowerGResult(
           status: PowerGStatus.mcuOk,
           fw: fw.isEmpty ? 'N/A' : fw,
@@ -263,8 +465,17 @@ class PowerGService {
       int? receivedIdDec;
       for (int i = 0; i < 10; i++) {
         await Future.delayed(const Duration(milliseconds: 300));
-        final pollOut = await runCmd(['adb', '-s', dutSerial, 'shell', 'service', 'call', 'powergservice', '202']);
-        
+        final pollOut = await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'service',
+          'call',
+          'powergservice',
+          '202',
+        ]);
+
         final match = RegExp(r'Parcel\(([0-9a-fA-F]{8})').firstMatch(pollOut);
         if (match != null) {
           final hexVal = match.group(1)!;
@@ -272,14 +483,27 @@ class PowerGService {
           if (decVal != null && decVal > 0) {
             receivedHex = hexVal;
             receivedIdDec = decVal;
-            logger.info('[PowerGService] Received registration ID: $decVal (hex: $hexVal) on attempt $i');
+            logger.info(
+              '[PowerGService] Received registration ID: $decVal (hex: $hexVal) on attempt $i',
+            );
             break;
           }
         }
       }
 
       // Disable AutoLearn
-      await runCmd(['adb', '-s', dutSerial, 'shell', 'service', 'call', 'powergservice', '2', 'i32', '0']);
+      await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'call',
+        'powergservice',
+        '2',
+        'i32',
+        '0',
+      ]);
 
       if (receivedIdDec != null) {
         return PowerGResult(
@@ -293,7 +517,9 @@ class PowerGService {
           rawDetails: 'Registered Hex: $receivedHex',
         );
       } else {
-        logger.warning('[PowerGService] Registration timeout on DUT $dutSerial');
+        logger.warning(
+          '[PowerGService] Registration timeout on DUT $dutSerial',
+        );
         return PowerGResult(
           status: PowerGStatus.fail,
           fw: fw.isEmpty ? 'N/A' : fw,
@@ -306,7 +532,18 @@ class PowerGService {
     } catch (e) {
       logger.severe('[PowerGService] Error during RF verification: $e');
       // Ensure AutoLearn is disabled
-      await runCmd(['adb', '-s', dutSerial, 'shell', 'service', 'call', 'powergservice', '2', 'i32', '0']);
+      await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'call',
+        'powergservice',
+        '2',
+        'i32',
+        '0',
+      ]);
       return PowerGResult(
         status: PowerGStatus.fail,
         fw: fw.isEmpty ? 'N/A' : fw,

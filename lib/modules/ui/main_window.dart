@@ -998,7 +998,9 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                           isWarning: isWarning,
                           modelName: modelName,
                           isRfTesting: key == 'RF' && monitor.isRfTesting,
-                          onDiagnosticsTap: key == 'RF' ? _openRfDiagnosticsDialog : null,
+                          onDiagnosticsTap: key == 'RF'
+                              ? _openRfDiagnosticsDialog
+                              : null,
                         ),
                       ),
                     ),
@@ -2082,7 +2084,9 @@ class _InfoCard extends StatelessWidget {
                     child: Icon(
                       Icons.tune_rounded,
                       size: 12,
-                      color: isDark ? const Color(0xFF00C6FF) : const Color(0xFF0084FF),
+                      color: isDark
+                          ? const Color(0xFF00C6FF)
+                          : const Color(0xFF0084FF),
                     ),
                   ),
                 ),

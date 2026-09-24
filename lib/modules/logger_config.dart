@@ -29,12 +29,16 @@ Future<void> initLogger() async {
   }
 
   Logger.root.onRecord.listen((record) {
-    final logMessage = '${record.time.toLocal().toString().substring(11, 19)} [${record.level.name}] ${record.message}';
+    final logMessage =
+        '${record.time.toLocal().toString().substring(11, 19)} [${record.level.name}] ${record.message}';
     print(logMessage);
-    
+
     if (_currentLogFile != null) {
       try {
-        _currentLogFile!.writeAsStringSync('$logMessage\n', mode: FileMode.append);
+        _currentLogFile!.writeAsStringSync(
+          '$logMessage\n',
+          mode: FileMode.append,
+        );
       } catch (_) {}
     }
   });

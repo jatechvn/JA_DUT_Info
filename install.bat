@@ -107,7 +107,7 @@ echo [5/5] Registering application in Windows Control Panel...
 set "REG_KEY=HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\JA_DUT_Info"
 
 reg add "%REG_KEY%" /v "DisplayName" /t REG_SZ /d "JA DUT Info" /f >nul
-reg add "%REG_KEY%" /v "DisplayVersion" /t REG_SZ /d "2.3.0" /f >nul
+reg add "%REG_KEY%" /v "DisplayVersion" /t REG_SZ /d "2.3.1" /f >nul
 reg add "%REG_KEY%" /v "Publisher" /t REG_SZ /d "JA Tech" /f >nul
 reg add "%REG_KEY%" /v "DisplayIcon" /t REG_SZ /d "%TARGET_DIR%\ja_dut_info.exe,0" /f >nul
 reg add "%REG_KEY%" /v "InstallLocation" /t REG_SZ /d "%TARGET_DIR%" /f >nul

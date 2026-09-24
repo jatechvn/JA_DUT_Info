@@ -112,7 +112,9 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.18),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.45 : 0.18,
+                      ),
                       blurRadius: 28,
                       offset: const Offset(0, 10),
                     ),
@@ -127,7 +129,9 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0084FF).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFF0084FF,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -171,9 +175,14 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                             size: 16,
                             color: isDark ? Colors.white60 : Colors.black54,
                           ),
-                          onPressed: isTesting ? null : () => Navigator.of(context).pop(),
+                          onPressed: isTesting
+                              ? null
+                              : () => Navigator.of(context).pop(),
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                          constraints: const BoxConstraints(
+                            minWidth: 26,
+                            minHeight: 26,
+                          ),
                           tooltip: 'Đóng (Esc)',
                         ),
                       ],
@@ -203,7 +212,12 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                               icon: Icons.sensors_rounded,
                               accentColor: const Color(0xFFA855F7),
                               isDark: isDark,
-                              child: _buildSrfContent(srf, monitor.goldenPanelSerial, isTesting, isDark),
+                              child: _buildSrfContent(
+                                srf,
+                                monitor.goldenPanelSerial,
+                                isTesting,
+                                isDark,
+                              ),
                             ),
                           ),
                         ],
@@ -233,27 +247,45 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                               : const Icon(Icons.refresh_rounded, size: 14),
                           label: Text(
                             isTesting ? 'Đang test...' : 'Kiểm tra lại',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0084FF),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                         // Close button
                         TextButton(
-                          onPressed: isTesting ? null : () => Navigator.of(context).pop(),
+                          onPressed: isTesting
+                              ? null
+                              : () => Navigator.of(context).pop(),
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                            foregroundColor: isDark
+                                ? Colors.white70
+                                : Colors.black87,
                           ),
-                          child: const Text('Đóng', style: TextStyle(fontSize: 11)),
+                          child: const Text(
+                            'Đóng',
+                            style: TextStyle(fontSize: 11),
+                          ),
                         ),
                       ],
                     ),
@@ -329,7 +361,10 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
             const SizedBox(height: 6),
             Text(
               'Đang kiểm tra...',
-              style: TextStyle(fontSize: 10, color: isDark ? Colors.white60 : Colors.black54),
+              style: TextStyle(
+                fontSize: 10,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
             ),
           ],
         ),
@@ -340,7 +375,10 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
       return Center(
         child: Text(
           'Không phát hiện card PowerG',
-          style: TextStyle(fontSize: 10, color: isDark ? Colors.white54 : Colors.black45),
+          style: TextStyle(
+            fontSize: 10,
+            color: isDark ? Colors.white54 : Colors.black45,
+          ),
           textAlign: TextAlign.center,
         ),
       );
@@ -349,7 +387,9 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
     final isPass = pg.status == PowerGStatus.pass;
     final statusColor = isPass
         ? const Color(0xFF10B981)
-        : (pg.status == PowerGStatus.mcuOk ? const Color(0xFFF59E0B) : const Color(0xFFEF4444));
+        : (pg.status == PowerGStatus.mcuOk
+              ? const Color(0xFFF59E0B)
+              : const Color(0xFFEF4444));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,14 +406,24 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isPass ? Icons.check_circle_rounded : (pg.status == PowerGStatus.mcuOk ? Icons.info_rounded : Icons.cancel_rounded),
+                isPass
+                    ? Icons.check_circle_rounded
+                    : (pg.status == PowerGStatus.mcuOk
+                          ? Icons.info_rounded
+                          : Icons.cancel_rounded),
                 size: 11,
                 color: statusColor,
               ),
               const SizedBox(width: 4),
               Text(
-                isPass ? 'PASS' : (pg.status == PowerGStatus.mcuOk ? 'MCU OK' : 'FAIL'),
-                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: statusColor),
+                isPass
+                    ? 'PASS'
+                    : (pg.status == PowerGStatus.mcuOk ? 'MCU OK' : 'FAIL'),
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: statusColor,
+                ),
               ),
             ],
           ),
@@ -381,13 +431,20 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
         const SizedBox(height: 6),
         _buildInfoRow('Tần số:', pg.frequency, isDark),
         _buildInfoRow('FW MCU:', pg.fw, isDark),
-        if (pg.comPort != null) _buildInfoRow('Cổng phát:', pg.comPort!, isDark),
-        if (pg.sensorId != null) _buildInfoRow('Sensor ID:', pg.sensorId!, isDark),
+        if (pg.comPort != null)
+          _buildInfoRow('Cổng phát:', pg.comPort!, isDark),
+        if (pg.sensorId != null)
+          _buildInfoRow('Sensor ID:', pg.sensorId!, isDark),
       ],
     );
   }
 
-  Widget _buildSrfContent(SrfResult? srf, String? goldenSerial, bool isTesting, bool isDark) {
+  Widget _buildSrfContent(
+    SrfResult? srf,
+    String? goldenSerial,
+    bool isTesting,
+    bool isDark,
+  ) {
     if (isTesting) {
       return Center(
         child: Column(
@@ -401,7 +458,10 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
             const SizedBox(height: 6),
             Text(
               'Đang kiểm tra...',
-              style: TextStyle(fontSize: 10, color: isDark ? Colors.white60 : Colors.black54),
+              style: TextStyle(
+                fontSize: 10,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
             ),
           ],
         ),
@@ -412,7 +472,10 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
       return Center(
         child: Text(
           'Không có card SRF\n(Matrix: 0000)',
-          style: TextStyle(fontSize: 10, color: isDark ? Colors.white54 : Colors.black45),
+          style: TextStyle(
+            fontSize: 10,
+            color: isDark ? Colors.white54 : Colors.black45,
+          ),
           textAlign: TextAlign.center,
         ),
       );
@@ -421,7 +484,9 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
     final isPass = srf.status == SrfStatus.pass;
     final statusColor = isPass
         ? const Color(0xFF10B981)
-        : (srf.status == SrfStatus.mcuOk ? const Color(0xFFF59E0B) : const Color(0xFFEF4444));
+        : (srf.status == SrfStatus.mcuOk
+              ? const Color(0xFFF59E0B)
+              : const Color(0xFFEF4444));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,21 +503,32 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isPass ? Icons.check_circle_rounded : (srf.status == SrfStatus.mcuOk ? Icons.info_rounded : Icons.cancel_rounded),
+                isPass
+                    ? Icons.check_circle_rounded
+                    : (srf.status == SrfStatus.mcuOk
+                          ? Icons.info_rounded
+                          : Icons.cancel_rounded),
                 size: 11,
                 color: statusColor,
               ),
               const SizedBox(width: 4),
               Text(
-                isPass ? 'PASS' : (srf.status == SrfStatus.mcuOk ? 'MCU OK' : 'FAIL'),
-                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: statusColor),
+                isPass
+                    ? 'PASS'
+                    : (srf.status == SrfStatus.mcuOk ? 'MCU OK' : 'FAIL'),
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: statusColor,
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 6),
         _buildInfoRow('Matrix:', srf.matrix, isDark),
-        if (goldenSerial != null) _buildInfoRow('Golden:', goldenSerial, isDark),
+        if (goldenSerial != null)
+          _buildInfoRow('Golden:', goldenSerial, isDark),
         Expanded(
           child: ListView.builder(
             itemCount: srf.slots.length,
@@ -463,7 +539,10 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text(
                   '• Slot ${slot.slotNumber}: ${slot.frequency} (${slot.brand})',
-                  style: TextStyle(fontSize: 9, color: isDark ? Colors.white70 : Colors.black87),
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               );

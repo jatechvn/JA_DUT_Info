@@ -1,17 +1,28 @@
-# 💬 JA DUT Info — RF Wireless Verification & LAN OTA Updates Edition (v2.3.0)
+# 💬 JA DUT Info — Boot Completion & Multi-Retry Reliability Edition (v2.3.1)
 
-> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
+> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.3.0-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.3.1-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.3.0
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.3.1
 
-### 1. 📡 Kiểm Tra Sóng Vô Tuyến Không Dây Tự Động (RF Wireless Verification Suite)
+### 1. 🔄 Tự Động Chờ Hoàn Tất Khởi Động & Chống N/A (Boot Completion Detection)
+- **Giám sát `sys.boot_completed` & `dev.bootcomplete`:** Ngăn chặn việc đọc sớm các thông số khi hệ điều hành Android của DUT chưa nạp xong các daemon phần cứng và RIL modem.
+- **Trạng thái `BOOTING` động:** Quả cầu hiển thị `BOOTING` kèm thông điệp tooltip trực quan.
+- **Grace Period 1.5s:** Thêm khoảng đệm an toàn sau khi boot xong giúp các bus phần cứng ổn định.
+- **Runtime Reboot Detection:** Tự động phát hiện khi thiết bị đang cắm bắt đầu reboot và chuyển về chế độ chờ boot.
+
+### 2. 🔁 Cơ Chế Quét Lặp Thông Số Đa Tầng (Multi-Retry Parameter Acquisition)
+- **CPU (Baseband Modem):** Thử lại 10 lần (15s) kèm 3 tầng fallback (`gsm.version.baseband` $\to$ `gsm.version.baseband1` $\to$ `ro.boot.baseband` / `ro.baseband`).
+- **PCASN, SYSSN, SYSPN, LCMPN, IMEI:** Thử lại 5 lần đảm bảo bus I2C/EEPROM đã sẵn sàng trước khi kết luận `N/A`.
+- **PowerG & SRF Resilience:** Tự động kiểm tra ServiceManager (`powergservice`), tự khởi động `powergd` qua `init`, và lặp kiểm tra nhận diện card phần cứng.
+
+### 3. 📡 Kiểm Tra Sóng Vô Tuyến Không Dây Tự Động (RF Wireless Verification Suite)
 - **PowerG (868 MHz EU / 915 MHz US/NA):**
   - Tự động nhận diện card PowerG, giải mã tần số theo giao thức phần cứng (Protocol 8: 915 MHz, Protocol 9: 868 MHz).
   - Kích hoạt chế độ AutoLearn (`service call powergservice 2 i32 1/0`), xóa bộ đệm đăng ký cũ (`transact 201`).
@@ -71,12 +82,12 @@
 
 ```
 JA_DUT_Info/
-├── ABOUT.txt                          # Metadata dự án (v2.3.0)
+├── ABOUT.txt                          # Metadata dự án (v2.3.1)
 ├── README.md                          # Hướng dẫn chi tiết & tài liệu tính năng
 ├── CHANGELOG.md                       # Lịch sử các phiên bản
 ├── USERGUIDE.md                       # Hướng dẫn sử dụng chi tiết cho người vận hành
-├── RELEASE_NOTES.md                   # Ghi chú phát hành phiên bản v2.3.0
-├── pubspec.yaml                       # Cấu hình gói & phiên bản Flutter (v2.3.0+6)
+├── RELEASE_NOTES.md                   # Ghi chú phát hành phiên bản v2.3.1
+├── pubspec.yaml                       # Cấu hình gói & phiên bản Flutter (v2.3.1+7)
 ├── build.bat                          # Kịch bản biên dịch Release & đóng gói tự động
 ├── install.bat                        # Bộ cài đặt Windows 1-click (%LOCALAPPDATA%)
 ├── uninstall.bat                      # Kịch bản staging gỡ cài đặt sạch sẽ
@@ -87,7 +98,7 @@ JA_DUT_Info/
 ├── lib/
 │   ├── main.dart                      # Khởi chạy ứng dụng Flutter
 │   └── modules/
-│       ├── constants.dart             # Hằng số appId, appName, appVersion (2.3.0)
+│       ├── constants.dart             # Hằng số appId, appName, appVersion (2.3.1)
 │       ├── logic.dart                 # ADB Monitor, đọc PCASN, SYSSN, LCMPN, RF Pipeline
 │       ├── logger_config.dart         # Cấu hình ghi log ứng dụng
 │       ├── services/

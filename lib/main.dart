@@ -11,10 +11,10 @@ import 'modules/ui/main_window.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize logger
   await initLogger();
-  
+
   runApp(
     MultiProvider(
       providers: [
@@ -33,7 +33,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    
+
     return MaterialApp(
       title: '$appName v$appVersion',
       debugShowCheckedModeBanner: false,

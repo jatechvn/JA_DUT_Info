@@ -1,13 +1,13 @@
-# Hướng Dẫn Sử Dụng JA DUT Info (v2.3.0)
+# Hướng Dẫn Sử Dụng JA DUT Info (v2.3.1)
 
-Ứng dụng **JA DUT Info** là công cụ giám sát thông số phần cứng DUT trạm sản xuất thông minh dạng widget nổi màn hình, tích hợp kiểm tra sóng vô tuyến không dây RF tự động và cập nhật qua mạng nội bộ LAN Over-The-Air (OTA).
+Ứng dụng **JA DUT Info** là công cụ giám sát thông số phần cứng DUT trạm sản xuất thông minh dạng widget nổi màn hình, tích hợp phát hiện hoàn tất khởi động (Boot Completion Detection), quét lặp thông số đa tầng (Multi-Retry), kiểm tra sóng vô tuyến không dây RF tự động và cập nhật qua mạng nội bộ LAN Over-The-Air (OTA).
 
 ---
 
 ## 1. Cài Đặt & Gỡ Cài Đặt Ứng Dụng
 
 ### 1.1. Cài đặt 1-Click (Không cần quyền Quản trị viên Administrator)
-1. Giải nén gói phát hành `JA_DUT_Info_v2.3.0_Windows_x64.zip`.
+1. Giải nén gói phát hành `JA_DUT_Info_v2.3.1_Windows_x64.zip`.
 2. Chạy đúp chuột vào tệp `install.bat` (hoặc chạy lệnh `install.bat /silent` trong kịch bản tự động).
 3. Ứng dụng sẽ được cài đặt trực tiếp vào:
    ```text
@@ -22,7 +22,7 @@
 
 ---
 
-## 2. Giám Sát Thông Số Phần Cứng DUT
+## 2. Giám Sát Thông Số Phần Cứng DUT & Cơ Chế Khởi Động
 
 Khi kết nối bảng mạch hoặc panel vào máy tính qua cáp USB ADB, widget tự động phát hiện thiết bị và hiển thị 7 thẻ thông tin:
 1. **PCASN**: Số Serial của bo mạch chính (Primary PCA Serial Number).
@@ -30,8 +30,11 @@ Khi kết nối bảng mạch hoặc panel vào máy tính qua cáp USB ADB, wid
 3. **LCMPN**: Mã linh kiện màn hình LCD / Cảm ứng.
 4. **IMEI**: Số nhận dạng thiết bị di động quốc tế (đối với model có modem LTE/Cellular).
 5. **BATTERY**: Phần trăm pin và trạng thái sạc (`⚡ 100%`).
-6. **CPU**: Tỷ lệ sử dụng vi xử lý thời gian thực.
+6. **CPU**: Tỷ lệ sử dụng vi xử lý và phiên bản Baseband Modem.
 7. **RF**: Trạng thái kiểm tra sóng không dây vô tuyến PowerG và SRF.
+
+> [!NOTE]
+> **Khởi động lại DUT (DUT Reboot):** Nếu DUT đang khởi động lại hoặc cắm vào khi chưa boot xong, quả cầu sẽ hiển thị trạng thái `BOOTING`. Hệ thống sẽ kiên nhẫn chờ Android khởi động hoàn tất (`sys.boot_completed == 1`) và tự động thử lại nhiều lần (multi-retry) để lấy đầy đủ Baseband CPU và sóng RF, loại bỏ hoàn toàn tình trạng hiển thị `N/A` ảo.
 
 > [!TIP]
 > **Sao chép nhanh 1-Click:** Nhấp chuột trái vào bất kỳ thẻ nào để sao chép giá trị trực tiếp vào Clipboard. Thông báo Toast sẽ xuất hiện xác nhận nội dung đã sao chép.

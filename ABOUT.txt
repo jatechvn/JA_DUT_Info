@@ -2,16 +2,17 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.3.0 (RF Wireless Verification & Diagnostics Edition)
+Version      : v2.3.1 (Boot Completion & Multi-Retry Reliability Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/
 ------------------------------------------------------------------------
 Description  : Ultra-lightweight floating desktop widget displaying Device 
-               Under Test (DUT) hardware parameters with automated RF wireless
-               verification (PowerG 868/915MHz and SRF 319.5/345/433MHz),
-               Bento Frosted Glass RF Diagnostics Dialog, LAN OTA Update,
-               QQ Guardian 80% edge docking, tilted wire station badge along
-               Bézier curves, adaptive toast notification alignment, and
-               per-region transparent mouse click-through.
+               Under Test (DUT) hardware parameters with automated Android
+               boot completion detection, multi-retry parameter acquisition,
+               automated RF wireless verification (PowerG 868/915MHz and
+               SRF 319.5/345/433MHz), Bento Frosted Glass RF Diagnostics,
+               LAN OTA Update, QQ Guardian 80% edge docking, tilted wire
+               station badge along Bézier curves, adaptive toast alignment,
+               and per-region transparent mouse click-through.
 ========================================================================

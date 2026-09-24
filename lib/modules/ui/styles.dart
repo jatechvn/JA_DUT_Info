@@ -45,7 +45,10 @@ class ThemeProvider extends ChangeNotifier {
         _isWin11 = true;
         return;
       }
-      final match = RegExp(r'Build\s+(\d+)', caseSensitive: false).firstMatch(versionStr);
+      final match = RegExp(
+        r'Build\s+(\d+)',
+        caseSensitive: false,
+      ).firstMatch(versionStr);
       if (match != null) {
         final buildNumber = int.tryParse(match.group(1) ?? '') ?? 0;
         _isWin11 = buildNumber >= 22000;
@@ -90,9 +93,7 @@ class ThemeProvider extends ChangeNotifier {
       primaryColor: _style.accentColor,
       scaffoldBackgroundColor: Colors.transparent,
       cardColor: _style.cardBg,
-      textTheme: const TextTheme(
-        bodyMedium: TextStyle(fontFamily: 'Outfit'),
-      ),
+      textTheme: const TextTheme(bodyMedium: TextStyle(fontFamily: 'Outfit')),
     );
   }
 }

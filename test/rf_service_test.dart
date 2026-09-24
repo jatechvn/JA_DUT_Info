@@ -9,8 +9,14 @@ void main() {
     test('Protocol to Frequency Mapping', () {
       expect(PowerGService.mapProtocolToFrequency('9'), equals('868 MHz (EU)'));
       expect(PowerGService.mapProtocolToFrequency('8'), equals('915 MHz (NA)'));
-      expect(PowerGService.mapProtocolToFrequency('6'), equals('915 MHz (LATAM)'));
-      expect(PowerGService.mapProtocolToFrequency('4'), equals('915 MHz (ANZ)'));
+      expect(
+        PowerGService.mapProtocolToFrequency('6'),
+        equals('915 MHz (LATAM)'),
+      );
+      expect(
+        PowerGService.mapProtocolToFrequency('4'),
+        equals('915 MHz (ANZ)'),
+      );
       expect(PowerGService.mapProtocolToFrequency('7'), equals('433 MHz'));
       expect(PowerGService.mapProtocolToFrequency(''), equals('N/A'));
       expect(PowerGService.mapProtocolToFrequency('N/A'), equals('N/A'));

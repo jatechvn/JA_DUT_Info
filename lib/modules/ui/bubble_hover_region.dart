@@ -32,7 +32,8 @@ class BubbleHoverRegion extends StatelessWidget {
 /// Geometry data for positioning a label or badge along a wire curve.
 class WireLabelGeometry {
   final Offset position;
-  final double angle; // in radians, normalized between -pi/2 and pi/2 for readability
+  final double
+  angle; // in radians, normalized between -pi/2 and pi/2 for readability
   final Offset normal;
 
   const WireLabelGeometry({
@@ -106,9 +107,5 @@ WireLabelGeometry computeLeadInWireStationGeometry({
     by + normal.dy * normalOffset,
   );
 
-  return WireLabelGeometry(
-    position: pos,
-    angle: angle,
-    normal: normal,
-  );
+  return WireLabelGeometry(position: pos, angle: angle, normal: normal);
 }

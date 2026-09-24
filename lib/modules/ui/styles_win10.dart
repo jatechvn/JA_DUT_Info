@@ -12,13 +12,16 @@ class Windows10Style implements AppStyle {
   Color get scaffoldBg => Colors.transparent;
 
   @override
-  Color get sidebarBg => isDark ? const Color(0xB21C1B1B) : const Color(0xB2F3F4F6); // 70% opacity
+  Color get sidebarBg =>
+      isDark ? const Color(0xB21C1B1B) : const Color(0xB2F3F4F6); // 70% opacity
 
   @override
-  Color get cardBg => isDark ? const Color(0xD92C2B2B) : const Color(0xD9FFFFFF); // 85% opacity
+  Color get cardBg =>
+      isDark ? const Color(0xD92C2B2B) : const Color(0xD9FFFFFF); // 85% opacity
 
   @override
-  Color get mainBg => isDark ? const Color(0xB21C1B1B) : const Color(0xB2F3F4F6); // 70% opacity
+  Color get mainBg =>
+      isDark ? const Color(0xB21C1B1B) : const Color(0xB2F3F4F6); // 70% opacity
 
   @override
   Color get activeTabBg => isDark ? Colors.white12 : Colors.black12;

@@ -12,13 +12,16 @@ class Windows11Style implements AppStyle {
   Color get scaffoldBg => Colors.transparent;
 
   @override
-  Color get sidebarBg => isDark ? const Color(0x801C1B1B) : const Color(0x80F3F4F6); // 50% opacity
+  Color get sidebarBg =>
+      isDark ? const Color(0x801C1B1B) : const Color(0x80F3F4F6); // 50% opacity
 
   @override
-  Color get cardBg => isDark ? const Color(0x9A2C2B2B) : const Color(0x9AFFFFFF); // 60% opacity
+  Color get cardBg =>
+      isDark ? const Color(0x9A2C2B2B) : const Color(0x9AFFFFFF); // 60% opacity
 
   @override
-  Color get mainBg => isDark ? const Color(0x801C1B1B) : const Color(0x80F3F4F6); // 50% opacity
+  Color get mainBg =>
+      isDark ? const Color(0x801C1B1B) : const Color(0x80F3F4F6); // 50% opacity
 
   @override
   Color get activeTabBg => isDark ? Colors.white12 : Colors.black12;
@@ -33,5 +36,6 @@ class Windows11Style implements AppStyle {
   Color get borderTheme => isDark ? Colors.white10 : Colors.black12;
 
   @override
-  Color get accentColor => isDark ? const Color(0xFF60CDFF) : const Color(0xFF0078D4); // Windows 11 Accent Blue
+  Color get accentColor =>
+      isDark ? const Color(0xFF60CDFF) : const Color(0xFF0078D4); // Windows 11 Accent Blue
 }

@@ -405,7 +405,9 @@ class _GlassUpdateDialogState extends State<GlassUpdateDialog> {
                             ),
                             child: SingleChildScrollView(
                               child: Text(
-                                widget.packageInfo.releaseNotes?.trim().isNotEmpty ==
+                                widget.packageInfo.releaseNotes
+                                            ?.trim()
+                                            .isNotEmpty ==
                                         true
                                     ? widget.packageInfo.releaseNotes!
                                     : 'Bản phát hành bao gồm các cải tiến hiệu năng, tính năng mới và các bản vá lỗi bảo mật.',
@@ -564,18 +566,16 @@ class _GlassUpdateDialogState extends State<GlassUpdateDialog> {
                                     height: 12,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 1.8,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(
+                                      valueColor: AlwaysStoppedAnimation<Color>(
                                         Colors.white,
                                       ),
                                     ),
                                   )
-                                : const Icon(
-                                    Icons.download_rounded,
-                                    size: 14,
-                                  ),
+                                : const Icon(Icons.download_rounded, size: 14),
                             label: Text(
-                              _isUpdating ? 'Đang cập nhật...' : 'Cập nhật ngay',
+                              _isUpdating
+                                  ? 'Đang cập nhật...'
+                                  : 'Cập nhật ngay',
                             ),
                             style: FilledButton.styleFrom(
                               backgroundColor: accentEmerald,

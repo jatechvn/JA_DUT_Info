@@ -4,6 +4,25 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+## [2.3.1] - 2026-09-24 — *Boot Completion Detection & Multi-Retry Reliability Edition*
+
+### 🚀 Enhancements & Bug Fixes
+- **Automated Boot Completion Detection (`_waitForBootComplete`):**
+  - Added detection for Android `sys.boot_completed == '1'` and `dev.bootcomplete == '1'` during device reboot or early ADB connection.
+  - When the DUT is rebooting, the floating bubble dynamically displays `BOOTING` status with `DUT đang khởi động (Đang chờ boot xong)...`, preventing premature reading of uninitialized properties.
+  - Added an extra 1.5-second stabilization grace period after boot completion before polling hardware daemons.
+  - Runtime reboot detection in `_checkDevices()`: immediately catches when an active DUT begins rebooting and smoothly transitions into boot-waiting mode.
+- **Multi-Retry Parameter Acquisition with Fallbacks:**
+  - **CPU (Baseband Modem):** Implemented a 10-attempt retry loop (1.5s interval, up to 15s) with triple-layer fallbacks (`gsm.version.baseband` $\to$ `gsm.version.baseband1` $\to$ `ro.boot.baseband` / `ro.baseband`). Completely resolves false `N/A` readings caused by RIL daemon startup delays during reboot.
+  - **PCASN, SYSSN, SYSPN, LCMPN, IMEI:** Added 5-attempt retry loops with 1s delays to ensure EEPROM I2C buses are fully accessible before falling back to `N/A`.
+- **Resilient RF Wireless Verification on Boot:**
+  - **PowerG Card Detection Loop:** Added a 10-attempt retry loop (1.5s interval) checking `qolsys.powerg.card`, `qolsys.powergv4.card`, and persistent protocol settings. Automatically triggers `qolsys.factory.hwd = 1` if hardware discovery is not yet completed.
+  - **PowerG Service Readiness & Auto-Start:** Automatically verifies `service check powergservice` in ServiceManager and issues `start powergd` if the daemon has not yet been started by `init`.
+  - **SRF Matrix Retry Loop:** Added multi-attempt matrix polling and daemon readiness checks (`srfslotd` / `srfd`) to avoid premature `N/A` on reboot.
+  - Only concludes `N/A - Không có card` after all discovery and daemon start attempts fail.
+
+---
+
 ## [2.3.0] - 2026-09-24 — *RF Wireless Verification & LAN OTA Updates Edition*
 
 ### 🚀 Major Features & Enhancements
