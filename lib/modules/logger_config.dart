@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 // lib/modules/logger_config.dart
 
 import 'dart:io';

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'modules/constants.dart';
 import 'modules/logger_config.dart';
 import 'modules/logic.dart';
+import 'modules/services/ota_update_service.dart';
 import 'modules/ui/styles.dart';
 import 'modules/ui/main_window.dart';
 
@@ -19,6 +20,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AdbMonitor()),
+        ChangeNotifierProvider.value(value: OtaUpdateService()),
       ],
       child: const MyApp(),
     ),

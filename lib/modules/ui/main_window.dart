@@ -5,9 +5,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../constants.dart';
 import '../logic.dart';
+import '../services/ota_update_service.dart';
 import 'styles.dart';
 import 'bubble_hover_region.dart';
+import 'glass_update_dialog.dart';
+import 'ota_settings_dialog.dart';
+import 'rf_diagnostics_dialog.dart';
 
 class MainWindow extends StatefulWidget {
   const MainWindow({super.key});
@@ -29,6 +34,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   String _toastMessage = '';
   bool _showToast = false;
   bool _isMenuOpen = false;
+  bool _isDialogOpen = false;
   String _lastSentHitRectsKey = '';
 
   // Dynamic 4-corner auto-detection & QQ Guardian edge docking state
@@ -71,6 +77,8 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     required double targetCardsLeft,
     required double startY,
     required double cardWidth,
+    required double cardHeight,
+    required double cardGap,
     required int cardCount,
     Rect? wireStationHitRect,
     Rect? toastHitRect,
@@ -79,8 +87,8 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
 
     final List<Map<String, double>> rects = [];
 
-    if (_isMenuOpen) {
-      // When context menu is open, capture all input so user can interact and click outside to dismiss
+    if (_isMenuOpen || _isDialogOpen) {
+      // When context menu or dialog is open, capture all input so user can interact and click outside/inside
       rects.add({'x': 0.0, 'y': 0.0, 'w': 440.0, 'h': 335.0});
     } else {
       rects.add({
@@ -95,9 +103,9 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
         for (var i = 0; i < cardCount; i++) {
           rects.add({
             'x': targetCardsLeft,
-            'y': startY + i * 36.0,
+            'y': startY + i * (cardHeight + cardGap),
             'w': cardWidth,
-            'h': 30.0,
+            'h': cardHeight,
           });
         }
       }
@@ -226,10 +234,81 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     });
   }
 
+  void _openOtaUpdateDialog(UpdatePackageInfo packageInfo) {
+    setState(() => _isDialogOpen = true);
+    showGlassUpdateDialog(
+      context: context,
+      packageInfo: packageInfo,
+      onDialogClosed: () {
+        if (mounted) setState(() => _isDialogOpen = false);
+      },
+    );
+  }
+
+  void _openOtaSettingsDialog() {
+    setState(() => _isDialogOpen = true);
+    showOtaSettingsDialog(
+      context: context,
+      onDialogClosed: () {
+        if (mounted) setState(() => _isDialogOpen = false);
+      },
+    );
+  }
+
+  void _openRfDiagnosticsDialog() {
+    setState(() => _isDialogOpen = true);
+    showRfDiagnosticsDialog(
+      context: context,
+      onDialogClosed: () {
+        if (mounted) setState(() => _isDialogOpen = false);
+      },
+    );
+  }
+
+  Future<void> _checkOtaManually() async {
+    _triggerToast('Đang kiểm tra cập nhật trên LAN...');
+    try {
+      final result = await OtaUpdateService().checkForUpdates(isManual: true);
+      if (!mounted) return;
+      if (result.hasUpdate && result.packageInfo != null) {
+        _triggerToast(
+          'Phát hiện bản mới: ${result.packageInfo!.version.displayVersion}!',
+        );
+        _openOtaUpdateDialog(result.packageInfo!);
+      } else if (!result.isConnectionSuccess) {
+        _triggerToast(result.errorMessage ?? 'Không thể kết nối máy chủ LAN');
+      } else {
+        _triggerToast('Ứng dụng đã ở bản mới nhất (v$appVersion)');
+      }
+    } catch (e) {
+      if (mounted) _triggerToast('Lỗi kiểm tra: $e');
+    }
+  }
+
+  Future<void> _checkOtaOnStartup() async {
+    final ota = OtaUpdateService();
+    await ota.ready;
+    final should = ota.shouldCheckForUpdates(
+      interval: ota.config.checkInterval,
+      lastCheckTime: ota.config.lastCheckTime,
+    );
+    if (should) {
+      try {
+        final result = await ota.checkForUpdates();
+        if (mounted && result.hasUpdate && result.packageInfo != null) {
+          _triggerToast(
+            'Có bản cập nhật mới: ${result.packageInfo!.version.displayVersion}',
+          );
+        }
+      } catch (_) {}
+    }
+  }
+
   void _showContextMenu(BuildContext context, TapDownDetails details) {
     setState(() => _isMenuOpen = true);
     final theme = Provider.of<ThemeProvider>(context, listen: false);
     final monitor = Provider.of<AdbMonitor>(context, listen: false);
+    final ota = Provider.of<OtaUpdateService>(context, listen: false);
 
     final position = RelativeRect.fromRect(
       details.globalPosition & const Size(40, 40),
@@ -370,6 +449,126 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
               ],
             ),
           ),
+        // LAN OTA Update menu items
+        const PopupMenuDivider(height: 1),
+        if (ota.availableUpdate != null)
+          PopupMenuItem<String>(
+            value: 'ota_update',
+            height: 36,
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.star_rounded,
+                  size: 16,
+                  color: Color(0xFF10B981),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '⭐ Cập nhật ${ota.availableUpdate!.version.displayVersion} (Mới!)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF10B981),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        PopupMenuItem<String>(
+          value: 'ota_check',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.system_update_alt_rounded,
+                size: 16,
+                color: Color(0xFF00ADB5),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Kiểm tra cập nhật (LAN)...',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'ota_settings',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.settings_suggest_rounded,
+                size: 16,
+                color: Color(0xFF64748B),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Cài đặt LAN OTA...',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // RF Verification menu items
+        const PopupMenuDivider(height: 1),
+        PopupMenuItem<String>(
+          value: 'rf_retest',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.refresh_rounded,
+                size: 16,
+                color: Color(0xFF00C6FF),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Kiểm tra lại sóng RF...',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'rf_diagnostics',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.cell_tower_rounded,
+                size: 16,
+                color: Color(0xFFA855F7),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Chẩn đoán RF chi tiết...',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(height: 1),
         PopupMenuItem<String>(
           value: 'close',
           height: 36,
@@ -413,6 +612,19 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
               monitor.allDuts.length;
           monitor.selectDut(monitor.allDuts[nextIdx]);
         }
+      } else if (value == 'ota_update') {
+        if (ota.availableUpdate != null) {
+          _openOtaUpdateDialog(ota.availableUpdate!);
+        }
+      } else if (value == 'ota_check') {
+        _checkOtaManually();
+      } else if (value == 'ota_settings') {
+        _openOtaSettingsDialog();
+      } else if (value == 'rf_retest') {
+        monitor.retestRf();
+        _triggerToast('Đang kiểm tra lại sóng RF...');
+      } else if (value == 'rf_diagnostics') {
+        _openRfDiagnosticsDialog();
       } else if (value == 'close') {
         _closeApp();
       }
@@ -464,6 +676,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
           platform.invokeMethod('updateTheme', themeProvider.isDark);
         } catch (_) {}
         _fetchWindowPosition();
+        _checkOtaOnStartup();
       }
     });
   }
@@ -480,6 +693,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeProvider>(context);
     final monitor = Provider.of<AdbMonitor>(context);
+    final ota = Provider.of<OtaUpdateService>(context);
 
     // Auto-trigger sprout / retract
     if (monitor.deviceConnected &&
@@ -541,9 +755,9 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       }
     }
 
-    const keys = ['PCASN', 'SYSSN', 'SYSPN', 'LCMPN', 'IMEI', 'CPU'];
-    const cardHeight = 30.0;
-    const cardGap = 6.0;
+    const keys = ['PCASN', 'SYSSN', 'SYSPN', 'LCMPN', 'IMEI', 'CPU', 'RF'];
+    const cardHeight = 26.0;
+    const cardGap = 5.0;
     const cardWidth = 286.0;
     const bubbleSize = 66.0;
 
@@ -660,6 +874,8 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       targetCardsLeft: targetCardsLeft,
       startY: startY,
       cardWidth: cardWidth,
+      cardHeight: cardHeight,
+      cardGap: cardGap,
       cardCount: keys.length,
       wireStationHitRect: wireStationHitRect,
       toastHitRect: toastHitRect,
@@ -703,7 +919,28 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
             ...keys.asMap().entries.map((entry) {
               final idx = entry.key;
               final key = entry.value;
-              final val = monitor.info[key] ?? 'N/A';
+              String val;
+              if (key == 'RF') {
+                if (monitor.isRfTesting) {
+                  val = 'Đang kiểm tra sóng RF...';
+                } else if (monitor.powerGResult != null) {
+                  final pg = monitor.powerGResult!;
+                  final srf = monitor.srfResult;
+                  if (pg.isPass && (srf?.isPass ?? false)) {
+                    val = 'PG: PASS (${pg.frequency}) • SRF: PASS';
+                  } else if (pg.isPass) {
+                    val = pg.displaySummary;
+                  } else if (srf?.isPass ?? false) {
+                    val = srf!.displaySummary;
+                  } else {
+                    val = pg.displaySummary;
+                  }
+                } else {
+                  val = monitor.info['PowerG'] ?? 'N/A';
+                }
+              } else {
+                val = monitor.info[key] ?? 'N/A';
+              }
               final isWarning =
                   key == 'LCMPN' && val.contains('không được chạy lại');
 
@@ -747,13 +984,21 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                       onExit: (_) => setState(() => _hoveredKey = null),
                       cursor: SystemMouseCursors.click,
                       child: GestureDetector(
-                        onTap: () => _copyToClipboard(key, val),
+                        onTap: () {
+                          if (key == 'RF') {
+                            _openRfDiagnosticsDialog();
+                          } else {
+                            _copyToClipboard(key, val);
+                          }
+                        },
                         child: _InfoCard(
                           fieldKey: key,
                           value: val,
                           isDark: theme.isDark,
                           isWarning: isWarning,
                           modelName: modelName,
+                          isRfTesting: key == 'RF' && monitor.isRfTesting,
+                          onDiagnosticsTap: key == 'RF' ? _openRfDiagnosticsDialog : null,
                         ),
                       ),
                     ),
@@ -966,6 +1211,50 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                                   ),
                                 ),
                               ),
+
+                            // OTA Update Available Badge
+                            if (ota.availableUpdate != null)
+                              Positioned(
+                                bottom: -2,
+                                right: _isRight ? null : -2,
+                                left: _isRight ? -2 : null,
+                                child: GestureDetector(
+                                  onTap: () => _openOtaUpdateDialog(
+                                    ota.availableUpdate!,
+                                  ),
+                                  child: Tooltip(
+                                    message:
+                                        'Có bản cập nhật mới: ${ota.availableUpdate!.version.displayVersion}',
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: const Color(0xFF10B981),
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 1.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(
+                                              0xFF10B981,
+                                            ).withValues(alpha: 0.6),
+                                            blurRadius: 6,
+                                            spreadRadius: 1,
+                                          ),
+                                        ],
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: const Icon(
+                                        Icons.system_update_alt_rounded,
+                                        size: 11,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -1019,7 +1308,9 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.95),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.95),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
                             color: const Color(0xFF10B981),
@@ -1171,16 +1462,18 @@ class _WireStationBadge extends StatelessWidget {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: (isDark
-                          ? const Color(0xFF38BDF8)
-                          : const Color(0xFF0084FF))
-                      .withValues(alpha: 0.4),
+                  color:
+                      (isDark
+                              ? const Color(0xFF38BDF8)
+                              : const Color(0xFF0084FF))
+                          .withValues(alpha: 0.4),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
                 BoxShadow(
-                  color: (isDark ? Colors.black : Colors.white)
-                      .withValues(alpha: 0.6),
+                  color: (isDark ? Colors.black : Colors.white).withValues(
+                    alpha: 0.6,
+                  ),
                   blurRadius: 4,
                 ),
               ],
@@ -1580,6 +1873,8 @@ class _InfoCard extends StatelessWidget {
   final bool isDark;
   final bool isWarning;
   final String modelName;
+  final bool isRfTesting;
+  final VoidCallback? onDiagnosticsTap;
 
   const _InfoCard({
     required this.fieldKey,
@@ -1587,6 +1882,8 @@ class _InfoCard extends StatelessWidget {
     required this.isDark,
     required this.isWarning,
     required this.modelName,
+    this.isRfTesting = false,
+    this.onDiagnosticsTap,
   });
 
   @override
@@ -1619,6 +1916,8 @@ class _InfoCard extends StatelessWidget {
           return Icons.phone_android;
         case 'CPU':
           return Icons.developer_board;
+        case 'RF':
+          return Icons.cell_tower_rounded;
         default:
           return Icons.info_outline;
       }
@@ -1714,11 +2013,86 @@ class _InfoCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
               ],
-              Icon(
-                Icons.copy,
-                size: 11,
-                color: isDark ? Colors.white38 : Colors.black38,
-              ),
+              if (fieldKey == 'RF') ...[
+                if (isRfTesting) ...[
+                  const SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: Color(0xFF00C6FF),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ] else if (value.contains('PASS')) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Text(
+                      'PASS',
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'JetBrains Mono',
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ] else if (value.contains('MCU OK')) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Text(
+                      'MCU OK',
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'JetBrains Mono',
+                        color: Color(0xFFF59E0B),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: onDiagnosticsTap,
+                    child: Icon(
+                      Icons.tune_rounded,
+                      size: 12,
+                      color: isDark ? const Color(0xFF00C6FF) : const Color(0xFF0084FF),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Icon(
+                  Icons.copy,
+                  size: 11,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                ),
+              ],
             ],
           ),
         ),

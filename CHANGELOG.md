@@ -4,6 +4,29 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+## [2.3.0] - 2026-09-24 — *RF Wireless Verification & LAN OTA Updates Edition*
+
+### 🚀 Major Features & Enhancements
+- **Automated RF Wireless Verification Suite:**
+  - **PowerG 868 / 915 MHz:** Hardware card detection, protocol mapping (Protocol 8: 915 MHz US/NA, Protocol 9: 868 MHz EU), AutoLearn toggling (`service call powergservice 2 i32 1/0`), buffer reset (`transact 201`), standalone runner tool `PowerGTransmitter.jar` with Silicon Labs CP210x COM port auto-discovery, and registration ID polling (`transact 202`).
+  - **SRF Multi-Slot (319.5 MHz, 345 MHz, 433 MHz):** Hardware matrix decoding from `qolsys.srfslot.matrix` (Slot 1 GE, Slot 2 DSC, Slot 4 Honeywell), MCU health verification (`service call srfservice 50`), and automated Golden Panel pairing (`persist.auto.run == '1'`) with slot broadcast triggers (`transact 18`).
+  - **Dual Pipeline in AdbMonitor:** Non-blocking asynchronous RF testing loop running in background threads without blocking serial or ADB metadata polling.
+- **Dynamic 7th Card Layout & Diagnostics Dialog:**
+  - Integrated 7th floating card (`RF`) with optimized compact metrics (`cardHeight = 26.0px`, `cardGap = 5.0px`), fitting neatly within the 335px transparent canvas.
+  - Per-region transparent mouse click-through updated dynamically for 7 cards with 0% CPU overhead.
+  - Live status indicators on the RF card: active spinner during test, emerald `PASS` badge, and amber `MCU OK` badge.
+  - Dedicated **Bento Frosted Glass RF Diagnostics Dialog** (`RfDiagnosticsDialog`) providing deep telemetry (Firmware, COM port, Protocol, AutoLearn status, MCU ping, Matrix slots) and 1-click Retest button.
+- **Enterprise LAN OTA Updates Suite:**
+  - **OtaUpdateService:** Full Semantic Versioning parser, UNC server share scanner (`\\server\share\...`), credentials management, and atomic self-updating via `apply_update.bat` and Robocopy with automatic rollback on error.
+  - **GlassUpdateDialog & OtaSettingsDialog:** Bento Frosted Glass UI for configuring update frequency (`daily`, `weekly`, `monthly`, `off`), UNC paths, viewing changelog/release notes, and executing updates with a progress bar.
+  - **TopBar Badge:** Glowing emerald badge indicator on the floating chathead bubble when an update is available.
+- **Windows Zero-Privilege Application Lifecycle Suite:**
+  - `install.bat`: 1-click Windows installer to `%LOCALAPPDATA%\Programs\JA_DUT_Info` without requiring administrator privileges, creating Desktop & Start Menu shortcuts and Control Panel uninstaller registration.
+  - `uninstall.bat` & `uninstall.ps1`: Safe staging driver operating from `%TEMP%` to cleanly delete binaries, shortcuts, and registry keys without file lock conflicts.
+  - `build.bat` & `windows\packaging\package_dist.ps1`: Automated packaging script creating portable releases and verified SHA-256 ZIP archives in `dist/`.
+
+---
+
 ## [2.2.1] - 2026-09-14 — *Adaptive Toast Alignment & Smooth Motion Edition*
 
 ### 🚀 Enhancements & Refinements

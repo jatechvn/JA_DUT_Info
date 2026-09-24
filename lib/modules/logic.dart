@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'utils.dart';
 import 'logger_config.dart';
+import 'services/powerg_service.dart';
+import 'services/srf_service.dart';
 
 class AdbMonitor extends ChangeNotifier {
   bool _running = false;
@@ -27,8 +29,22 @@ class AdbMonitor extends ChangeNotifier {
     'LCMPN': 'N/A',
     'IMEI': 'N/A',
     'CPU': 'N/A',
+    'PowerG': 'N/A',
+    'SRF': 'N/A',
   };
   Map<String, String> get info => _info;
+
+  PowerGResult? _powerGResult;
+  PowerGResult? get powerGResult => _powerGResult;
+
+  SrfResult? _srfResult;
+  SrfResult? get srfResult => _srfResult;
+
+  String? _goldenPanelSerial;
+  String? get goldenPanelSerial => _goldenPanelSerial;
+
+  bool _isRfTesting = false;
+  bool get isRfTesting => _isRfTesting;
 
   String _status = 'Waiting for DUT connection...';
   String get status => _status;
@@ -90,13 +106,6 @@ class AdbMonitor extends ChangeNotifier {
     return devices;
   }
 
-  Future<bool> _checkIsDut(String serial) async {
-    final out = await runCmd(['adb', '-s', serial, 'shell', 'getprop', 'persist.auto.run']);
-    final isDut = out != '1';
-    logger.info('Check DUT [$serial] - persist.auto.run: \'$out\' -> Is DUT: $isDut');
-    return isDut;
-  }
-
   Future<void> selectDut(String serial) async {
     if (!_allDuts.contains(serial)) return;
     await _loadDut(serial);
@@ -109,10 +118,17 @@ class AdbMonitor extends ChangeNotifier {
     _isSuccessStatus = true;
     _status = 'Connected: $serial';
     _stationResult = 'Loading...';
+    _powerGResult = null;
+    _srfResult = null;
+    _info['PowerG'] = 'Đang kiểm tra...';
+    _info['SRF'] = 'Đang kiểm tra...';
     
     _overlayText = 'LOADING';
     _showOverlay = true;
     notifyListeners();
+
+    // Trigger non-blocking RF check concurrently
+    _checkRfAsync(serial);
 
     // 1. Read PCASN first to determine device model overlay
     String pcasnVal = 'N/A';
@@ -299,14 +315,72 @@ class AdbMonitor extends ChangeNotifier {
     }
   }
 
+  Future<void> _checkRfAsync(String serial) async {
+    if (_currentDut != serial) return;
+    _isRfTesting = true;
+    _info['PowerG'] = 'Đang kiểm tra...';
+    _info['SRF'] = 'Đang kiểm tra...';
+    notifyListeners();
+
+    try {
+      final pgService = PowerGService();
+      final srfService = SrfService();
+
+      // Run PowerG and SRF checks concurrently
+      final pgFuture = pgService.verifyDut(serial);
+      final srfFuture = srfService.verifyDut(serial, goldenSerial: _goldenPanelSerial);
+
+      final pgRes = await pgFuture;
+      if (_currentDut == serial) {
+        _powerGResult = pgRes;
+        _info['PowerG'] = pgRes.displaySummary;
+        notifyListeners();
+      }
+
+      final srfRes = await srfFuture;
+      if (_currentDut == serial) {
+        _srfResult = srfRes;
+        _info['SRF'] = srfRes.displaySummary;
+        notifyListeners();
+      }
+    } catch (e) {
+      logger.severe('Failed to run RF check for $serial: $e');
+      if (_currentDut == serial) {
+        _info['PowerG'] = 'Lỗi test RF';
+        _info['SRF'] = 'Lỗi test RF';
+      }
+    } finally {
+      if (_currentDut == serial) {
+        _isRfTesting = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> retestRf() async {
+    if (_currentDut.isEmpty) return;
+    logger.info('User requested RF retest for $_currentDut');
+    await _checkRfAsync(_currentDut);
+  }
+
   Future<void> _checkDevices() async {
     final devices = await _getDevices();
     final List<String> activeDuts = [];
+    String? detectedGolden;
 
     for (final dev in devices) {
-      if (await _checkIsDut(dev)) {
+      final autoRun = (await runCmd(['adb', '-s', dev, 'shell', 'getprop', 'persist.auto.run'])).trim();
+      if (autoRun == '1') {
+        detectedGolden = dev;
+      } else {
         activeDuts.add(dev);
       }
+    }
+
+    if (_goldenPanelSerial != detectedGolden) {
+      _goldenPanelSerial = detectedGolden;
+      logger.info('Golden panel detected: $_goldenPanelSerial');
+      notifyListeners();
     }
 
     activeDuts.sort();
@@ -344,7 +418,12 @@ class AdbMonitor extends ChangeNotifier {
           'LCMPN': 'N/A',
           'IMEI': 'N/A',
           'CPU': 'N/A',
+          'PowerG': 'N/A',
+          'SRF': 'N/A',
         };
+        _powerGResult = null;
+        _srfResult = null;
+        _isRfTesting = false;
         _overlayText = 'NO DATA';
         _showOverlay = true;
         _stationResult = 'N/A';

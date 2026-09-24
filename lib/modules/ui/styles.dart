@@ -80,7 +80,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       await _channel.invokeMethod('updateTheme', _isDark);
     } catch (e) {
-      print('Failed to apply native theme: $e');
+      debugPrint('Failed to apply native theme: $e');
     }
   }
 

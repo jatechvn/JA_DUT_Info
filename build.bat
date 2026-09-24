@@ -1,45 +1,96 @@
 @echo off
-setlocal enabledelayedexpansion
-title Build Release Packager
-
-set WORKSPACE_DIR=%~dp0
-cd /d "%WORKSPACE_DIR%"
-
-set APP_NAME=JA_DUT_Info
-set VERSION=2.2.1
-
-taskkill /IM ja_dut_info.exe /F 2>nul
-echo [BUILD] Compiling Windows desktop application in Release mode...
-call flutter build windows --release
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Build failed!
+setlocal EnableExtensions DisableDelayedExpansion
+cd /d "%~dp0"
+if errorlevel 1 (
+    echo [ERROR] Khong the mo thu muc du an.
     pause
-    exit /b %ERRORLEVEL%
+    exit /b 1
+)
+title Build JA DUT Info (Release)
+echo ========================================================
+echo   BUILD JA DUT INFO - RELEASE WINDOWS DESKTOP
+echo ========================================================
+echo.
+
+:: 1. Dong tien trinh dang chay neu co de tranh loi khoa file
+echo [1/5] Kiem tra va dong tien trinh cu dang chay neu co...
+taskkill /IM ja_dut_info.exe /F 2>nul
+
+:: 2. Bien dich ung dung o che do Release
+echo [2/5] Bien dich ung dung Flutter Windows Desktop (Release mode)...
+call flutter build windows --release
+set "BUILD_EXIT_CODE=%ERRORLEVEL%"
+if not "%BUILD_EXIT_CODE%"=="0" (
+    echo.
+    echo ========================================================
+    echo   [ERROR] Build that bai! Vui long kiem tra loi o tren.
+    echo ========================================================
+    pause
+    exit /b %BUILD_EXIT_CODE%
 )
 
-set REL=build\windows\x64\runner\Release
+set "TARGET_DIR=%~dp0build\windows\x64\runner\Release"
+if not exist "%TARGET_DIR%\" (
+    echo [ERROR] Khong tim thay thu muc Release: %TARGET_DIR%
+    pause
+    exit /b 1
+)
 
-if exist %REL%\config.json del /f /q %REL%\config.json
-if exist %REL%\config.ini del /f /q %REL%\config.ini
-if exist %REL%\logs rmdir /s /q %REL%\logs
+:: 3. Sao chep file debug.bat va tai nguyen phu tro vao thu muc Release
+echo [3/5] Dong bo file debug.bat va tai nguyen vao thu muc Release...
+if exist "%~dp0debug.bat" (
+    copy /y "%~dp0debug.bat" "%TARGET_DIR%\debug.bat" >nul
+    echo       - Da chep debug.bat vao thu muc Release.
+)
+if exist "%~dp0install.bat" (
+    copy /y "%~dp0install.bat" "%TARGET_DIR%\install.bat" >nul
+    echo       - Da chep install.bat vao thu muc Release.
+)
+if exist "%~dp0uninstall.bat" (
+    copy /y "%~dp0uninstall.bat" "%TARGET_DIR%\uninstall.bat" >nul
+    echo       - Da chep uninstall.bat vao thu muc Release.
+)
+copy /y "%~dp0uninstall.ps1" "%TARGET_DIR%\uninstall.ps1" >nul
+if errorlevel 1 (
+    echo [ERROR] Cannot package uninstall.ps1.
+    pause
+    exit /b 1
+)
+if exist "%~dp0ABOUT.txt" copy /y "%~dp0ABOUT.txt" "%TARGET_DIR%\" >nul
+if exist "%~dp0README.md" copy /y "%~dp0README.md" "%TARGET_DIR%\" >nul
+if exist "%~dp0CHANGELOG.md" copy /y "%~dp0CHANGELOG.md" "%TARGET_DIR%\" >nul
+if exist "%~dp0USERGUIDE.md" copy /y "%~dp0USERGUIDE.md" "%TARGET_DIR%\" >nul
+if exist "%~dp0RELEASE_NOTES.md" copy /y "%~dp0RELEASE_NOTES.md" "%TARGET_DIR%\" >nul
+if exist "%~dp0LICENSE" copy /y "%~dp0LICENSE" "%TARGET_DIR%\" >nul
+if exist "%~dp0config.ini" copy /y "%~dp0config.ini" "%TARGET_DIR%\" >nul
+if exist "%~dp0config.json" copy /y "%~dp0config.json" "%TARGET_DIR%\" >nul
 
-if exist bin xcopy /e /i /y /q bin %REL%\bin\
-if exist assets xcopy /e /i /y /q assets %REL%\assets\
-if exist i18n xcopy /e /i /y /q i18n %REL%\i18n\
-if exist debug.bat copy /y debug.bat %REL%\
-if exist ABOUT.txt copy /y ABOUT.txt %REL%\
-if exist README.md copy /y README.md %REL%\
-if exist CHANGELOG.md copy /y CHANGELOG.md %REL%\
-if exist LICENSE copy /y LICENSE %REL%\
+:: 4. Dong bo toan bo Release sang dist va tao goi zip chuan dart-build-pro
+echo [4/5] Dong bo sang dist va dong goi zip chuan phat hanh...
+if not exist "%~dp0windows\packaging\package_dist.ps1" (
+    echo [ERROR] Packaging script is missing.
+    pause
+    exit /b 1
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0windows\packaging\package_dist.ps1"
+if errorlevel 1 (
+    echo [ERROR] Packaging failed. Previous dist has been preserved.
+    pause
+    exit /b 1
+)
 
-if exist dist rmdir /s /q dist
-mkdir dist
-xcopy /e /i /y /q %REL%\*.* dist\
+:: 5. Tao Shortcut den thu muc Release ngay tai goc du an
+echo [5/5] Tao shortcut .Release - Shortcut.lnk tai goc du an...
+set "SHORTCUT_PATH=%~dp0.Release - Shortcut.lnk"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut($env:SHORTCUT_PATH); $s.TargetPath = $env:TARGET_DIR; $s.Save()" >nul 2>&1
 
-if exist "dist_pack" rmdir /s /q "dist_pack"
-mkdir "dist_pack\%APP_NAME%_v%VERSION%_Windows_x64"
-xcopy /e /i /y /q "dist\*.*" "dist_pack\%APP_NAME%_v%VERSION%_Windows_x64\"
-powershell -Command "Compress-Archive -Path 'dist_pack\*' -DestinationPath 'dist\%APP_NAME%_v%VERSION%_Windows_x64.zip' -Force"
-if exist "dist_pack" rmdir /s /q "dist_pack"
-
-echo [SUCCESS] Release packaged at dist\%APP_NAME%_v%VERSION%_Windows_x64.zip
+echo.
+echo ========================================================
+echo   [HOAN TAT] BUILD THANH CONG
+echo   - Thu muc: %TARGET_DIR%
+echo   - Dist: %~dp0dist
+echo   - Runner debug: %TARGET_DIR%\debug.bat
+echo ========================================================
+echo Nhan phim bat ky de dong cua so nay (tu dong dong sau 5s)...
+timeout /t 5 >nul 2>&1 || pause >nul
+exit /b 0
