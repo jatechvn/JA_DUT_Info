@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import '../logger_config.dart';
 import '../utils.dart';
+import 'transmitter_process.dart';
 
 enum PowerGStatus {
   pass, // RF Sensor registered & MCU OK
@@ -140,6 +141,7 @@ class PowerGService {
   /// Trigger PowerG Transmitter to broadcast a sensor registration packet
   Future<Map<String, dynamic>> triggerTransmitter({
     String action = 'transmit',
+    String targetFreq = 'all',
   }) async {
     final jarPath = _findTransmitterJarPath();
     if (jarPath == null) {
@@ -152,46 +154,22 @@ class PowerGService {
     try {
       final jarDir = File(jarPath).parent.path;
       logger.info(
-        '[PowerGService] Running PowerGTransmitter: java -jar "$jarPath" $action',
+        '[PowerGService] Running PowerGTransmitter: java -jar "$jarPath" $action $targetFreq',
       );
-      final result = await Process.run(
-        'java',
-        ['-jar', jarPath, action],
-        workingDirectory: jarDir,
-        runInShell: true,
-      ).timeout(const Duration(seconds: 8));
-
-      final stdout = result.stdout.toString();
-      logger.info('[PowerGService] Transmitter output: $stdout');
-
-      for (final line in stdout.split('\n')) {
-        final trimmed = line.trim();
-        if (trimmed.startsWith('RESULT:TRANSMIT_OK')) {
-          // Parse: RESULT:TRANSMIT_OK:FREQ=1:VER=547:ID=1011230:RET=0
-          final parts = trimmed.split(':');
-          String? sensorId;
-          String? freq;
-          for (final p in parts) {
-            if (p.startsWith('ID=')) sensorId = p.substring(3);
-            if (p.startsWith('FREQ=')) freq = p.substring(5);
-          }
-          return {
-            'success': true,
-            'sensorId': sensorId ?? '1011230',
-            'frequency': freq == '1' ? '868 MHz' : '915 MHz',
-            'raw': stdout,
-          };
-        } else if (trimmed.startsWith('RESULT:PING_OK')) {
-          return {'success': true, 'pingOnly': true, 'raw': stdout};
-        } else if (trimmed.startsWith('RESULT:NO_DEVICE')) {
-          return {
-            'success': false,
-            'error': 'No transmitter device attached',
-            'raw': stdout,
-          };
-        }
-      }
-      return {'success': false, 'error': 'Unexpected response', 'raw': stdout};
+      final result = await runTransmitterProcess('java', [
+        '-Xmx64m',
+        '-Xms16m',
+        '-jar',
+        jarPath,
+        action,
+        targetFreq,
+      ], workingDirectory: jarDir);
+      logger.info('[PowerGService] Transmitter output: ${result.stdout}');
+      return parseTransmitterResult(
+        result,
+        action: action,
+        targetFreq: targetFreq,
+      );
     } catch (e) {
       logger.severe('[PowerGService] Exception running PowerGTransmitter: $e');
       return {'success': false, 'error': e.toString()};
@@ -431,40 +409,28 @@ class PowerGService {
         '201',
       ]);
 
-      // 5. Trigger transmitter
-      final transmitResult = await triggerTransmitter(action: 'transmit');
-      if (!transmitResult['success']) {
+      // 5. Trigger transmitter with frequency awareness
+      final targetFreq = (protocol == '8' || protocol == '6' || protocol == '4')
+          ? '915'
+          : ((protocol == '9') ? '868' : 'all');
+      final transmitResult = await triggerTransmitter(
+        action: 'transmit',
+        targetFreq: targetFreq,
+      );
+
+      final transmitterFailed = !transmitResult['success'];
+      if (transmitterFailed) {
         logger.warning(
-          '[PowerGService] Transmitter trigger failed: ${transmitResult['error']}',
-        );
-        // Disable AutoLearn
-        await runCmd([
-          'adb',
-          '-s',
-          dutSerial,
-          'shell',
-          'service',
-          'call',
-          'powergservice',
-          '2',
-          'i32',
-          '0',
-        ]);
-        return PowerGResult(
-          status: PowerGStatus.mcuOk,
-          fw: fw.isEmpty ? 'N/A' : fw,
-          protocol: protocol.isEmpty ? 'N/A' : protocol,
-          frequency: freqStr,
-          comPort: comPort,
-          message: 'MCU OK (Bộ phát lỗi: ${transmitResult['error']})',
+          '[PowerGService] Transmitter trigger issue: ${transmitResult['error']} (checking if background broadcast or MMI tool is active)',
         );
       }
 
       // 6. Poll transact 202 for registration message
       String receivedHex = '';
       int? receivedIdDec;
-      for (int i = 0; i < 10; i++) {
-        await Future.delayed(const Duration(milliseconds: 300));
+      // 20 attempts x 400ms = 8.0 seconds polling window
+      for (int i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 400));
         final pollOut = await runCmd([
           'adb',
           '-s',
@@ -515,6 +481,15 @@ class PowerGService {
           comPort: comPort,
           message: 'RF PASS (ID: $receivedIdDec)',
           rawDetails: 'Registered Hex: $receivedHex',
+        );
+      } else if (transmitterFailed) {
+        return PowerGResult(
+          status: PowerGStatus.mcuOk,
+          fw: fw.isEmpty ? 'N/A' : fw,
+          protocol: protocol.isEmpty ? 'N/A' : protocol,
+          frequency: freqStr,
+          comPort: comPort,
+          message: 'MCU OK (Bộ phát bận/lỗi: ${transmitResult['error']})',
         );
       } else {
         logger.warning(

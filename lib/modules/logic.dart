@@ -8,8 +8,15 @@ import 'utils.dart';
 import 'logger_config.dart';
 import 'services/powerg_service.dart';
 import 'services/srf_service.dart';
+import 'services/boot_gate.dart';
 
 class AdbMonitor extends ChangeNotifier {
+  int _loadGeneration = 0;
+  bool _bootReady = false;
+  final BootGate _bootGate = BootGate(
+    (serial, property) =>
+        runCmd(['adb', '-s', serial, 'shell', 'getprop', property]),
+  );
   bool _running = false;
   bool get running => _running;
 
@@ -74,6 +81,8 @@ class AdbMonitor extends ChangeNotifier {
 
   void stop() {
     _running = false;
+    _loadGeneration++;
+    _bootReady = false;
     logger.info('Stopping monitor thread...');
   }
 
@@ -115,24 +124,8 @@ class AdbMonitor extends ChangeNotifier {
     await _loadDut(serial);
   }
 
-  Future<bool> _waitForBootComplete(String serial) async {
+  Future<bool> _waitForBootComplete(String serial, int generation) async {
     logger.info('Checking boot status on DUT: $serial...');
-
-    // Quick check first if already booted
-    try {
-      final bootCompleted = (await runCmd([
-        'adb',
-        '-s',
-        serial,
-        'shell',
-        'getprop',
-        'sys.boot_completed',
-      ])).trim();
-      if (bootCompleted == '1') {
-        logger.info('DUT $serial already boot completed.');
-        return true;
-      }
-    } catch (_) {}
 
     logger.info(
       'DUT $serial is booting. Waiting for sys.boot_completed == 1...',
@@ -142,42 +135,17 @@ class AdbMonitor extends ChangeNotifier {
     _showOverlay = true;
     notifyListeners();
 
-    // Poll up to 60 seconds (60 iterations x 1s)
-    for (var i = 0; i < 60; i++) {
-      if (!_running || _currentDut != serial) return false;
-      await Future.delayed(const Duration(seconds: 1));
-
-      try {
-        final bootCompleted = (await runCmd([
-          'adb',
-          '-s',
-          serial,
-          'shell',
-          'getprop',
-          'sys.boot_completed',
-        ])).trim();
-        final devBoot = (await runCmd([
-          'adb',
-          '-s',
-          serial,
-          'shell',
-          'getprop',
-          'dev.bootcomplete',
-        ])).trim();
-        if (bootCompleted == '1' || devBoot == '1') {
-          logger.info('DUT $serial reached boot_completed after ${i + 1}s.');
-          // Grace period for system daemons and RIL to initialize
-          await Future.delayed(const Duration(milliseconds: 1500));
-          return true;
-        }
-      } catch (_) {}
-    }
-
-    logger.warning('DUT $serial timed out waiting for boot completed.');
-    return false;
+    return _bootGate.wait(
+      serial,
+      isCurrent: () =>
+          _running && _currentDut == serial && _loadGeneration == generation,
+    );
   }
 
   Future<void> _loadDut(String serial) async {
+    final generation = ++_loadGeneration;
+    _bootReady = false;
+    _isRfTesting = false;
     logger.info('Loading DUT: $serial');
     _currentDut = serial;
     _deviceConnected = true;
@@ -202,8 +170,18 @@ class AdbMonitor extends ChangeNotifier {
     notifyListeners();
 
     // 1. Wait for boot completion if device is rebooting
-    await _waitForBootComplete(serial);
-    if (_currentDut != serial) return;
+    final booted = await _waitForBootComplete(serial, generation);
+    if (!_running || _currentDut != serial || _loadGeneration != generation) {
+      return;
+    }
+    if (!booted) {
+      _status = 'Chưa hoàn tất khởi động. Sẽ kiểm tra lại...';
+      _isSuccessStatus = false;
+      notifyListeners();
+      return;
+    }
+    _bootReady = true;
+    _isSuccessStatus = true;
 
     _status = 'DUT đã boot xong. Đang nạp thông số...';
     _overlayText = 'READING';
@@ -605,7 +583,15 @@ class AdbMonitor extends ChangeNotifier {
   }
 
   Future<void> _checkRfAsync(String serial) async {
-    if (_currentDut != serial) return;
+    if (!_running || !_bootReady || _currentDut != serial || _isRfTesting) {
+      return;
+    }
+    final generation = _loadGeneration;
+    bool isCurrent() =>
+        _running &&
+        _bootReady &&
+        _currentDut == serial &&
+        generation == _loadGeneration;
     _isRfTesting = true;
     _info['PowerG'] = 'Đang kiểm tra...';
     _info['SRF'] = 'Đang kiểm tra...';
@@ -623,26 +609,26 @@ class AdbMonitor extends ChangeNotifier {
       );
 
       final pgRes = await pgFuture;
-      if (_currentDut == serial) {
+      if (isCurrent()) {
         _powerGResult = pgRes;
         _info['PowerG'] = pgRes.displaySummary;
         notifyListeners();
       }
 
       final srfRes = await srfFuture;
-      if (_currentDut == serial) {
+      if (isCurrent()) {
         _srfResult = srfRes;
         _info['SRF'] = srfRes.displaySummary;
         notifyListeners();
       }
     } catch (e) {
       logger.severe('Failed to run RF check for $serial: $e');
-      if (_currentDut == serial) {
+      if (isCurrent()) {
         _info['PowerG'] = 'Lỗi test RF';
         _info['SRF'] = 'Lỗi test RF';
       }
     } finally {
-      if (_currentDut == serial) {
+      if (isCurrent()) {
         _isRfTesting = false;
         notifyListeners();
       }
@@ -709,6 +695,8 @@ class AdbMonitor extends ChangeNotifier {
           !_showOverlay) {
         logger.info('All DUTs disconnected (was: $_currentDut)');
         _currentDut = '';
+        _loadGeneration++;
+        _bootReady = false;
         _deviceConnected = false;
         _isSuccessStatus = false;
         _status = 'Waiting for DUT connection...';
@@ -742,21 +730,13 @@ class AdbMonitor extends ChangeNotifier {
       } else if (_currentDut.isNotEmpty && _deviceConnected) {
         // Check if currently connected DUT has started a reboot
         try {
-          final bootCompleted = (await runCmd([
-            'adb',
-            '-s',
-            _currentDut,
-            'shell',
-            'getprop',
-            'sys.boot_completed',
-          ])).trim();
-          if (bootCompleted.isNotEmpty &&
-              bootCompleted != '1' &&
-              bootCompleted != 'N/A') {
-            logger.info(
-              'Detected current DUT $_currentDut reboot in progress (sys.boot_completed=$bootCompleted). Reloading...',
-            );
-            await _loadDut(_currentDut);
+          final serial = _currentDut;
+          final ready = await _bootGate
+              .isReady(serial)
+              .timeout(const Duration(seconds: 5));
+          if (!_running || _currentDut != serial) return;
+          if (!ready || !_bootReady) {
+            await _loadDut(serial);
           }
         } catch (_) {}
       }

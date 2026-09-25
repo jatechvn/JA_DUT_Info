@@ -4,6 +4,28 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+## [2.4.0] - 2026-09-25 — *Windows Autostart & Quick DUT Switch Capsule Edition*
+
+### 🚀 Enhancements & New Features
+- **Tùy Chọn Khởi Động Cùng Windows (Windows Autostart Option):**
+  - **Mặc định kích hoạt khi cài đặt:** `install.bat` tự động ghi khóa Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\JA_DUT_Info` (chạy ở không gian User, không đòi hỏi quyền Admin).
+  - **Dọn dẹp sạch sẽ khi gỡ cài đặt:** `uninstall.ps1` tự động xóa khóa Registry khi người dùng gỡ ứng dụng.
+  - **Bật/Tắt 1-Click trong App:** Bổ sung service `autostart_service.dart` và mục menu ngữ cảnh `[✓] Khởi động cùng Windows` trên Chathead bubble, phản hồi trạng thái bằng toast thông báo tức thời.
+- **Thanh Capsule Đổi DUT Nhanh Nổi Phía Trên Thẻ PCASN (`DutSwitchHeader`):**
+  - Widget dạng capsule mỏng (cao 18px, rộng 175px) hiển thị trực quan thông số thiết bị: Icon `📱` + `DUT: <serial> (<vị_trí>/<tổng_số>)` + Nút chip chuyển đổi `[⇄ ĐỔI]`.
+  - Hiệu ứng kính mờ Frosted Glass và viền sáng Cyan (`#00ADB5`) khi di chuột qua, kèm Tooltip hướng dẫn chi tiết.
+  - Nhấp chuột trực tiếp vào capsule để chuyển đổi xoay vòng sang DUT tiếp theo với thông báo xác nhận `Đã chuyển sang DUT: <serial>`.
+  - **Thông minh & Thích ứng theo vị trí:** Tự động ẩn khi chỉ có 1 DUT để giữ giao diện tối giản; tự động xuất hiện khi $\ge 2$ DUT. Vị trí tự căn lệch đối xứng tránh va chạm với Chathead bubble hoặc nhãn Station.
+  - **Đồng bộ Win32 Native Hit-Test:** Đăng ký vùng tương tác `dutHeaderHitRect` vào C++ Runner, đảm bảo click nhạy 100% không xuyên thấu nền.
+- **Tái Cấu Trúc Tương Tác Thẻ RF (RF Card Tap & Layout Refactor):**
+  - Nhấp chuột vào hàng thẻ RF kích hoạt kiểm tra lại sóng vô tuyến (`retestRf()`).
+  - Biểu tượng cài đặt `tune` ở cuối hàng chuyên dụng để mở hộp thoại Chẩn đoán Bento (`RfDiagnosticsDialog`).
+  - Loại bỏ nút refresh riêng lẻ để giải phóng toàn bộ chiều rộng cho chữ marquee cuộn thông số RF.
+- **Tối Ưu Hóa Kịch Bản Đóng Gói Phát Hành (`build.bat` & `package_dist.ps1`):**
+  - Chuyển đổi sang Robocopy `/MIR` in-place, khắc phục triệt để lỗi khóa tệp `ERROR_SHARING_VIOLATION` khi đóng gói thư mục `dist/`.
+
+---
+
 ## [2.3.1] - 2026-09-24 — *Boot Completion Detection & Multi-Retry Reliability Edition*
 
 ### 🚀 Enhancements & Bug Fixes

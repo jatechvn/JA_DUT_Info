@@ -2,13 +2,14 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.3.1 (Boot Completion & Multi-Retry Reliability Edition)
+Version      : v2.4.0 (Windows Autostart & Quick DUT Switch Capsule Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/
 ------------------------------------------------------------------------
 Description  : Ultra-lightweight floating desktop widget displaying Device 
-               Under Test (DUT) hardware parameters with automated Android
+               Under Test (DUT) hardware parameters with Windows autostart
+               support, floating quick DUT switch capsule header, automated
                boot completion detection, multi-retry parameter acquisition,
                automated RF wireless verification (PowerG 868/915MHz and
                SRF 319.5/345/433MHz), Bento Frosted Glass RF Diagnostics,

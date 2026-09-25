@@ -1,15 +1,38 @@
-# 💬 JA DUT Info — Boot Completion & Multi-Retry Reliability Edition (v2.3.1)
+# 💬 JA DUT Info — Windows Autostart & Quick DUT Switch Capsule Edition (v2.4.0)
 
-> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
+> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.3.1-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.4.0-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.3.1
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.0
+
+### 1. ⚡ Tùy Chọn Khởi Động Cùng Windows (Windows Autostart Option)
+- **Mặc định bật khi cài đặt:** Bộ cài `install.bat` tự động ghi nhận Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\JA_DUT_Info` (không đòi hỏi quyền Admin).
+- **Gỡ cài đặt sạch sẽ:** `uninstall.bat` và `uninstall.ps1` tự động xóa khóa Registry khi gỡ bỏ ứng dụng.
+- **Bật/Tắt 1-Click trong App:** Nhấp chuột phải vào Chathead bubble, chọn mục **`[✓] Khởi động cùng Windows`** để bật hoặc tắt bất kỳ lúc nào kèm thông báo xác nhận tức thời.
+
+### 2. 📱 Thanh Capsule Đổi DUT Nhanh Nổi Trên Thẻ PCASN (`DutSwitchHeader`)
+- Thiết kế thanh capsule mỏng (cao 18px, rộng 175px) hiển thị trực quan thông số thiết bị: Icon `📱` + `DUT: <serial> (<vị_trí>/<tổng_số>)` + Nút chip chuyển đổi `[⇄ ĐỔI]`.
+- **Thao tác 1-Click:** Nhấp chuột trực tiếp vào capsule để chuyển đổi xoay vòng sang DUT tiếp theo với thông báo xác nhận `Đã chuyển sang DUT: <serial>`.
+- **Thông minh & Thích ứng theo vị trí:**
+  - Tự động ẩn khi chỉ có 1 DUT để giữ giao diện tối giản; tự động xuất hiện khi có $\ge 2$ thiết bị DUT kết nối.
+  - Vị trí tự căn lệch đối xứng tránh va chạm với Chathead bubble hoặc nhãn Station.
+  - Đồng bộ hiệu ứng nảy / thu gọn ăn khớp 100% với các thẻ thông số.
+  - Tích hợp Win32 Native Hit-Test chống click xuyên thấu nền.
+
+### 3. 🎯 Tái Cấu Trúc Tương Tác Thẻ RF (RF Card Tap & Layout Refactor)
+- Nhấp chuột vào bất kỳ đâu trên hàng thẻ RF để kích hoạt kiểm tra lại sóng vô tuyến (`retestRf()`).
+- Nhấp vào biểu tượng cài đặt `tune` ở cuối hàng để mở hộp thoại Chẩn đoán Bento chi tiết (`RfDiagnosticsDialog`).
+- Loại bỏ nút refresh riêng lẻ để giải phóng toàn bộ không gian ngang cho chữ marquee cuộn thông số RF.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.3.1 & v2.3.0
 
 ### 1. 🔄 Tự Động Chờ Hoàn Tất Khởi Động & Chống N/A (Boot Completion Detection)
 - **Giám sát `sys.boot_completed` & `dev.bootcomplete`:** Ngăn chặn việc đọc sớm các thông số khi hệ điều hành Android của DUT chưa nạp xong các daemon phần cứng và RIL modem.

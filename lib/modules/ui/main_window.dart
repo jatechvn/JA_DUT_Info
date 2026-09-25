@@ -1,5 +1,6 @@
 // lib/modules/ui/main_window.dart
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -7,12 +8,19 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../logic.dart';
+import '../services/autostart_service.dart';
 import '../services/ota_update_service.dart';
 import 'styles.dart';
 import 'bubble_hover_region.dart';
 import 'glass_update_dialog.dart';
 import 'ota_settings_dialog.dart';
 import 'rf_diagnostics_dialog.dart';
+
+Rect? measuredHeaderRect(GlobalKey key, RenderBox root) {
+  final box = key.currentContext?.findRenderObject();
+  if (box is! RenderBox || !box.hasSize) return null;
+  return box.localToGlobal(Offset.zero, ancestor: root) & box.size;
+}
 
 class MainWindow extends StatefulWidget {
   const MainWindow({super.key});
@@ -36,6 +44,36 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   bool _isMenuOpen = false;
   bool _isDialogOpen = false;
   String _lastSentHitRectsKey = '';
+  bool _autostartEnabled = false;
+  final _dutHeaderKey = GlobalKey();
+  List<Map<String, double>> _nativeHitRects = [];
+
+  // Post-layout measurement includes both Transform and AnimatedPositioned.
+  // Re-registering a callback does not request frames or keep the app animating.
+  void _syncNativeHitRects(Duration _) {
+    if (!mounted) return;
+    if (Platform.isWindows) {
+      final rects = [..._nativeHitRects];
+      final root = context.findRenderObject();
+      final header = root is RenderBox
+          ? measuredHeaderRect(_dutHeaderKey, root)
+          : null;
+      if (!_isMenuOpen && !_isDialogOpen && header != null) {
+        rects.add({
+          'x': header.left,
+          'y': header.top,
+          'w': header.width,
+          'h': header.height,
+        });
+      }
+      final key = rects.toString();
+      if (key != _lastSentHitRectsKey) {
+        _lastSentHitRectsKey = key;
+        _windowChannel.invokeMethod('setHitTestRects', rects);
+      }
+    }
+    WidgetsBinding.instance.addPostFrameCallback(_syncNativeHitRects);
+  }
 
   // Dynamic 4-corner auto-detection & QQ Guardian edge docking state
   bool _autoCornerMode = true;
@@ -131,13 +169,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       }
     }
 
-    final key = rects.toString();
-    if (key == _lastSentHitRectsKey) return;
-    _lastSentHitRectsKey = key;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _windowChannel.invokeMethod('setHitTestRects', rects);
-    });
+    _nativeHitRects = rects;
   }
 
   void _startDrag() {
@@ -570,6 +602,33 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
         ),
         const PopupMenuDivider(height: 1),
         PopupMenuItem<String>(
+          value: 'toggle_autostart',
+          height: 36,
+          child: Row(
+            children: [
+              Icon(
+                _autostartEnabled
+                    ? Icons.check_box_rounded
+                    : Icons.check_box_outline_blank_rounded,
+                size: 16,
+                color: _autostartEnabled
+                    ? const Color(0xFF10B981)
+                    : (theme.isDark ? Colors.white38 : Colors.black38),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Khởi động cùng Windows',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(height: 1),
+        PopupMenuItem<String>(
           value: 'close',
           height: 36,
           child: const Row(
@@ -610,8 +669,27 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
           final nextIdx =
               (monitor.allDuts.indexOf(monitor.currentDut) + 1) %
               monitor.allDuts.length;
-          monitor.selectDut(monitor.allDuts[nextIdx]);
+          final nextDut = monitor.allDuts[nextIdx];
+          monitor.selectDut(nextDut);
+          _triggerToast('Đã chuyển sang DUT: $nextDut');
         }
+      } else if (value == 'toggle_autostart') {
+        final newTarget = !_autostartEnabled;
+        AutostartService.setAutostartEnabled(newTarget).then((ok) {
+          if (!mounted) return;
+          if (!ok) {
+            _triggerToast('Không thể thay đổi khởi động cùng Windows');
+            return;
+          }
+          if (ok && mounted) {
+            setState(() => _autostartEnabled = newTarget);
+            _triggerToast(
+              newTarget
+                  ? 'Đã bật khởi động cùng Windows'
+                  : 'Đã tắt khởi động cùng Windows',
+            );
+          }
+        });
       } else if (value == 'ota_update') {
         if (ota.availableUpdate != null) {
           _openOtaUpdateDialog(ota.availableUpdate!);
@@ -634,6 +712,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(_syncNativeHitRects);
 
     _sproutAnimController = AnimationController(
       vsync: this,
@@ -677,7 +756,14 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
         } catch (_) {}
         _fetchWindowPosition();
         _checkOtaOnStartup();
+        _checkAutostartOnStartup();
       }
+    });
+  }
+
+  void _checkAutostartOnStartup() {
+    AutostartService.isAutostartEnabled().then((enabled) {
+      if (mounted) setState(() => _autostartEnabled = enabled);
     });
   }
 
@@ -736,9 +822,14 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
           end: Alignment.bottomRight,
           colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0), Color(0xFF1F1C2C)],
         );
-      } else if (monitor.showOverlay && monitor.overlayText == 'LOADING') {
+      } else if (monitor.showOverlay &&
+          const [
+            'LOADING',
+            'READING',
+            'BOOTING',
+          ].contains(monitor.overlayText)) {
         modelName = '⏳';
-        subLabel = 'READING';
+        subLabel = monitor.overlayText == 'BOOTING' ? 'BOOTING' : 'READING';
         bubbleGradient = const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -807,7 +898,17 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     final bool hasDockedWireStation =
         hasStation && isDockedCurrentSide && !isInteracting;
 
-    final double startY = _isBottom ? 115.0 : 10.0;
+    final bool hasMultiDut =
+        monitor.deviceConnected && monitor.allDuts.length > 1;
+
+    final double startY = _isBottom ? 115.0 : (hasMultiDut ? 20.0 : 10.0);
+
+    const double dutCapsuleWidth = 175.0;
+    const double dutCapsuleHeight = 18.0;
+    final double dutHeaderTop = startY - 20.0;
+    final double dutCapsuleLeft = _isRight
+        ? targetCardsLeft
+        : (targetCardsLeft + cardWidth - dutCapsuleWidth);
 
     final double bubbleTop = _isBottom
         ? 10.0
@@ -915,7 +1016,50 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
               ),
             ),
 
-            // 2. Vertical Stacking Frosted Glass Cards (Smooth Animation & Snug Edge Alignment)
+            // 2. Mini Floating Capsule Header for Quick DUT Switch (When >1 DUT connected)
+            if (hasMultiDut)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                left: dutCapsuleLeft,
+                top: dutHeaderTop,
+                width: dutCapsuleWidth,
+                height: dutCapsuleHeight,
+                child: RepaintBoundary(
+                  child: AnimatedBuilder(
+                    animation: _sproutAnimController,
+                    builder: (context, child) {
+                      final animVal = _sproutAnimController.value;
+                      final curvedVal = Curves.easeOutCubic.transform(animVal);
+                      if (curvedVal <= 0.01) {
+                        return const SizedBox.shrink();
+                      }
+                      final slideOffsetX = _isRight
+                          ? (35.0 * (1.0 - curvedVal))
+                          : (-35.0 * (1.0 - curvedVal));
+                      return Opacity(
+                        opacity: curvedVal,
+                        child: Transform.translate(
+                          offset: Offset(slideOffsetX, 0),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: DutSwitchHeader(
+                      key: _dutHeaderKey,
+                      currentDut: monitor.currentDut,
+                      allDuts: monitor.allDuts,
+                      isDark: theme.isDark,
+                      onSwitchDut: (nextDut) {
+                        monitor.selectDut(nextDut);
+                        _triggerToast('Đã chuyển sang DUT: $nextDut');
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
+            // 3. Vertical Stacking Frosted Glass Cards (Smooth Animation & Snug Edge Alignment)
             ...keys.asMap().entries.map((entry) {
               final idx = entry.key;
               final key = entry.value;
@@ -986,7 +1130,20 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                       child: GestureDetector(
                         onTap: () {
                           if (key == 'RF') {
-                            _openRfDiagnosticsDialog();
+                            if (monitor.currentDut.isEmpty) {
+                              _triggerToast(
+                                'Không có thiết bị DUT để kiểm tra',
+                              );
+                              return;
+                            }
+                            if (monitor.isRfTesting) {
+                              _triggerToast(
+                                'Đang trong quá trình kiểm tra sóng RF...',
+                              );
+                              return;
+                            }
+                            monitor.retestRf();
+                            _triggerToast('Đang kiểm tra lại sóng RF...');
                           } else {
                             _copyToClipboard(key, val);
                           }
@@ -1354,6 +1511,167 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Quick DUT Switch Capsule Header (Position 3: Floating above PCASN)
+// ---------------------------------------------------------------------------
+class DutSwitchHeader extends StatefulWidget {
+  final String currentDut;
+  final List<String> allDuts;
+  final bool isDark;
+  final ValueChanged<String> onSwitchDut;
+
+  const DutSwitchHeader({
+    super.key,
+    required this.currentDut,
+    required this.allDuts,
+    required this.isDark,
+    required this.onSwitchDut,
+  });
+
+  @override
+  State<DutSwitchHeader> createState() => _DutSwitchHeaderState();
+}
+
+class _DutSwitchHeaderState extends State<DutSwitchHeader> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentIdx = widget.allDuts.indexOf(widget.currentDut);
+    final displayIdx = (currentIdx >= 0) ? (currentIdx + 1) : 1;
+    final totalDuts = widget.allDuts.length;
+    final nextIdx = (currentIdx >= 0) ? ((currentIdx + 1) % totalDuts) : 0;
+    final nextDut = widget.allDuts.isNotEmpty ? widget.allDuts[nextIdx] : '';
+    final dutName = widget.currentDut.isNotEmpty ? widget.currentDut : 'N/A';
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (nextDut.isNotEmpty) {
+            widget.onSwitchDut(nextDut);
+          }
+        },
+        child: Tooltip(
+          message:
+              'Chuyển sang DUT tiếp theo: $nextDut ($displayIdx/$totalDuts)',
+          waitDuration: const Duration(milliseconds: 400),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9.0),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 1.5,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.isDark
+                      ? const Color(
+                          0xFF0F172A,
+                        ).withValues(alpha: _isHovered ? 0.95 : 0.82)
+                      : Colors.white.withValues(
+                          alpha: _isHovered ? 0.98 : 0.86,
+                        ),
+                  borderRadius: BorderRadius.circular(9.0),
+                  border: Border.all(
+                    color: _isHovered
+                        ? const Color(0xFF00ADB5)
+                        : (widget.isDark
+                              ? Colors.white.withValues(alpha: 0.22)
+                              : Colors.black.withValues(alpha: 0.12)),
+                    width: 0.9,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(
+                        0xFF00ADB5,
+                      ).withValues(alpha: _isHovered ? 0.35 : 0.08),
+                      blurRadius: _isHovered ? 8 : 3,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.phone_android_rounded,
+                      size: 11,
+                      color: widget.isDark
+                          ? const Color(0xFF38BDF8)
+                          : const Color(0xFF0284C7),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'DUT: $dutName ($displayIdx/$totalDuts)',
+                        style: TextStyle(
+                          fontSize: 9.0,
+                          fontFamily: 'JetBrains Mono',
+                          fontWeight: FontWeight.w700,
+                          color: widget.isDark
+                              ? Colors.white.withValues(alpha: 0.92)
+                              : const Color(0xFF0F172A),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 0.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: widget.isDark
+                            ? const Color(
+                                0xFF00ADB5,
+                              ).withValues(alpha: _isHovered ? 0.35 : 0.18)
+                            : const Color(
+                                0xFF00ADB5,
+                              ).withValues(alpha: _isHovered ? 0.25 : 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.swap_horiz_rounded,
+                            size: 11,
+                            color: widget.isDark
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF0284C7),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'ĐỔI',
+                            style: TextStyle(
+                              fontSize: 8.0,
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w800,
+                              color: widget.isDark
+                                  ? const Color(0xFF38BDF8)
+                                  : const Color(0xFF0284C7),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -1869,7 +2187,9 @@ class _WirePainter extends CustomPainter {
 // ---------------------------------------------------------------------------
 // Compact Frosted Glass Info Card Row Widget with Blur Effect
 // ---------------------------------------------------------------------------
-class _InfoCard extends StatelessWidget {
+typedef _InfoCard = InfoCard;
+
+class InfoCard extends StatelessWidget {
   final String fieldKey;
   final String value;
   final bool isDark;
@@ -1878,7 +2198,8 @@ class _InfoCard extends StatelessWidget {
   final bool isRfTesting;
   final VoidCallback? onDiagnosticsTap;
 
-  const _InfoCard({
+  const InfoCard({
+    super.key,
     required this.fieldKey,
     required this.value,
     required this.isDark,
@@ -2080,13 +2401,27 @@ class _InfoCard extends StatelessWidget {
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: onDiagnosticsTap,
-                    child: Icon(
-                      Icons.tune_rounded,
-                      size: 12,
-                      color: isDark
-                          ? const Color(0xFF00C6FF)
-                          : const Color(0xFF0084FF),
+                    child: Tooltip(
+                      message: 'Cài đặt & chẩn đoán RF chi tiết',
+                      waitDuration: const Duration(milliseconds: 300),
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF00C6FF).withValues(alpha: 0.15)
+                              : const Color(0xFF0084FF).withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Icon(
+                          Icons.tune_rounded,
+                          size: 12,
+                          color: isDark
+                              ? const Color(0xFF00C6FF)
+                              : const Color(0xFF0084FF),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -2126,6 +2461,7 @@ class _MarqueeText extends StatefulWidget {
 class _MarqueeTextState extends State<_MarqueeText> {
   final ScrollController _scrollController = ScrollController();
   bool _isScrolling = false;
+  Timer? _holdTimer;
 
   @override
   void initState() {
@@ -2137,23 +2473,35 @@ class _MarqueeTextState extends State<_MarqueeText> {
   void didUpdateWidget(covariant _MarqueeText oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.text != widget.text) {
+      _holdTimer?.cancel();
+      _isScrolling = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _startScrolling());
     }
   }
 
+  Future<void> _waitHold(int ms) {
+    _holdTimer?.cancel();
+    final completer = Completer<void>();
+    _holdTimer = Timer(Duration(milliseconds: ms), () {
+      if (!completer.isCompleted) completer.complete();
+    });
+    return completer.future;
+  }
+
   Future<void> _startScrolling() async {
     if (!mounted || !_scrollController.hasClients || _isScrolling) return;
-    _isScrolling = true;
 
-    // Initial hold delay (1500ms)
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted || !_scrollController.hasClients) {
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    if (maxExtent <= 0) {
       _isScrolling = false;
       return;
     }
 
-    final maxExtent = _scrollController.position.maxScrollExtent;
-    if (maxExtent <= 0) {
+    _isScrolling = true;
+
+    // Initial hold delay (1500ms)
+    await _waitHold(1500);
+    if (!mounted || !_scrollController.hasClients) {
       _isScrolling = false;
       return;
     }
@@ -2169,7 +2517,7 @@ class _MarqueeTextState extends State<_MarqueeText> {
       if (!mounted || !_scrollController.hasClients) break;
 
       // Hold at the end (1500ms)
-      await Future.delayed(const Duration(milliseconds: 1500));
+      await _waitHold(1500);
       if (!mounted || !_scrollController.hasClients) break;
 
       // 2. Fast snap bounce back to start (800ms)
@@ -2181,7 +2529,7 @@ class _MarqueeTextState extends State<_MarqueeText> {
       if (!mounted || !_scrollController.hasClients) break;
 
       // Hold at the start (1500ms)
-      await Future.delayed(const Duration(milliseconds: 1500));
+      await _waitHold(1500);
     }
 
     _isScrolling = false;
@@ -2189,6 +2537,7 @@ class _MarqueeTextState extends State<_MarqueeText> {
 
   @override
   void dispose() {
+    _holdTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }

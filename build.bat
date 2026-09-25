@@ -13,8 +13,8 @@ echo ========================================================
 echo.
 
 :: 1. Dong tien trinh dang chay neu co de tranh loi khoa file
-echo [1/5] Kiem tra va dong tien trinh cu dang chay neu co...
-taskkill /IM ja_dut_info.exe /F 2>nul
+echo [1/5] Giu nguyen cac ung dung dang chay.
+rem Running applications are preserved; a locked build will fail safely.
 
 :: 2. Bien dich ung dung o che do Release
 echo [2/5] Bien dich ung dung Flutter Windows Desktop (Release mode)...
@@ -62,11 +62,10 @@ if exist "%~dp0CHANGELOG.md" copy /y "%~dp0CHANGELOG.md" "%TARGET_DIR%\" >nul
 if exist "%~dp0USERGUIDE.md" copy /y "%~dp0USERGUIDE.md" "%TARGET_DIR%\" >nul
 if exist "%~dp0RELEASE_NOTES.md" copy /y "%~dp0RELEASE_NOTES.md" "%TARGET_DIR%\" >nul
 if exist "%~dp0LICENSE" copy /y "%~dp0LICENSE" "%TARGET_DIR%\" >nul
-if exist "%~dp0config.ini" copy /y "%~dp0config.ini" "%TARGET_DIR%\" >nul
-if exist "%~dp0config.json" copy /y "%~dp0config.json" "%TARGET_DIR%\" >nul
 
 :: 4. Dong bo toan bo Release sang dist va tao goi zip chuan dart-build-pro
 echo [4/5] Dong bo sang dist va dong goi zip chuan phat hanh...
+rem Running applications are preserved; a locked build will fail safely.
 if not exist "%~dp0windows\packaging\package_dist.ps1" (
     echo [ERROR] Packaging script is missing.
     pause

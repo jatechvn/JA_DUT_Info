@@ -53,7 +53,7 @@ foreach ($file in $runtime) {
 }
 
 # Distribute scripts and project documentation
-foreach ($name in @('debug.bat','install.bat','uninstall.bat','uninstall.ps1','ABOUT.txt','README.md','CHANGELOG.md','USERGUIDE.md','RELEASE_NOTES.md','LICENSE','config.json','config.ini')) {
+foreach ($name in @('debug.bat','install.bat','uninstall.bat','uninstall.ps1','ABOUT.txt','README.md','CHANGELOG.md','USERGUIDE.md','RELEASE_NOTES.md','LICENSE')) {
     $source = Join-Path $root $name
     if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $payload $name) }
     elseif ($name -in @('install.bat','uninstall.bat','uninstall.ps1')) { throw "Missing installer helper: $name" }
@@ -83,16 +83,33 @@ foreach ($item in Get-ChildItem -LiteralPath $payload -Force) { Copy-Item -Liter
 $hash = (Get-FileHash -LiteralPath $zip).Hash
 Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS.txt') -Value "$hash *$packageName.zip" -Encoding ascii
 
-# Publish only a validated complete output. Keep old output untouched on failure.
-$previous = Join-Path $root ('dist.previous-' + $id)
-if (Test-Path -LiteralPath $dist) { Move-Item -LiteralPath $dist -Destination $previous }
-try { Move-Item -LiteralPath $output -Destination $dist }
-catch {
-    if ((Test-Path -LiteralPath $previous) -and -not (Test-Path -LiteralPath $dist)) { Move-Item -LiteralPath $previous -Destination $dist }
-    throw
+# Preserve user configs in dist if any exist
+$savedConfigs = @{}
+if (Test-Path -LiteralPath $dist) {
+    foreach ($cfg in @('config.ini', 'config.json', 'update_config.json')) {
+        $cfgPath = Join-Path $dist $cfg
+        if (Test-Path -LiteralPath $cfgPath) {
+            $savedConfigs[$cfg] = Get-Content -LiteralPath $cfgPath -Raw
+        }
+    }
+    Get-ChildItem -LiteralPath $dist -Filter "*.zip" -File | Remove-Item -Force -ErrorAction SilentlyContinue
+} else {
+    New-Item -ItemType Directory -Path $dist -Force | Out-Null
 }
-finally {
-    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
-    if (Test-Path -LiteralPath $previous) { Remove-Item -LiteralPath $previous -Recurse -Force -ErrorAction SilentlyContinue }
+
+Get-Process ja_dut_info -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 200
+
+# Robocopy /MIR output into dist
+& robocopy $output $dist /MIR /R:5 /W:1 /NP /NFL /NDL /NJH /NJS | Out-Null
+
+# Restore user config if needed
+foreach ($pair in $savedConfigs.GetEnumerator()) {
+    $targetCfg = Join-Path $dist $pair.Key
+    if (-not (Test-Path -LiteralPath $targetCfg)) {
+        Set-Content -LiteralPath $targetCfg -Value $pair.Value -Encoding utf8
+    }
 }
-Write-Host "[SUCCESS] $dist ($version). ZIP contents and SHA256 verified."
+
+Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "[SUCCESS] Published $packageName to $dist ($version). ZIP contents and SHA256 verified."

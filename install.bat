@@ -116,6 +116,13 @@ reg add "%REG_KEY%" /v "URLInfoAbout" /t REG_SZ /d "https://github.com/jatechvn/
 reg add "%REG_KEY%" /v "NoModify" /t REG_DWORD /d 1 /f >nul
 reg add "%REG_KEY%" /v "NoRepair" /t REG_DWORD /d 1 /f >nul
 
+:: Enable launch on Windows startup by default
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "JA_DUT_Info" /t REG_SZ /d "\"%TARGET_DIR%\ja_dut_info.exe\"" /f >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to register Windows startup.
+    goto install_error
+)
+
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$dir = $env:TARGET_DIR; " ^
   "$bytes = (Get-ChildItem -Path $dir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; " ^
@@ -133,6 +140,7 @@ echo ========================================================
 echo - Installation directory: %TARGET_DIR%
 echo - Desktop shortcut: JA DUT Info.lnk
 echo - Menu Start: Programs \ JA DUT Info
+echo - Run on Windows startup: Enabled (HKCU\...\Run)
 echo - Uninstall from: Control Panel ^& Windows Settings
 echo.
 

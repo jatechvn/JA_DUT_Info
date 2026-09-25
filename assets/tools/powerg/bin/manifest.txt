@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Main-Class: qolsys.tool.PowerGTransmitter
+Class-Path: powerGRadioController-2.1.jar jSerialComm-2.11.0.jar
+
+
