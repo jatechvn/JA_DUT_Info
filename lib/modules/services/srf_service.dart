@@ -14,7 +14,9 @@ enum SrfStatus {
 
 class SrfSlotInfo {
   final int slotNumber;
-  final String serviceName; // e.g. srfservice_ttyHSL1
+  final String serviceName; // e.g. srfservice_ttyHSL1 or srfservice_ttyHSLX
+  final String
+  goldenServiceName; // e.g. srfservice_ttyHSL1 (used for Golden Panel transmit)
   final String fw;
   final String frequency; // e.g. 319.5 MHz, 345 MHz, 433 MHz
   final String brand; // GE, Honeywell, DSC
@@ -22,10 +24,11 @@ class SrfSlotInfo {
   const SrfSlotInfo({
     required this.slotNumber,
     required this.serviceName,
+    String? goldenServiceName,
     required this.fw,
     required this.frequency,
     required this.brand,
-  });
+  }) : goldenServiceName = goldenServiceName ?? serviceName;
 
   @override
   String toString() => 'Slot $slotNumber: $frequency ($brand) [FW: $fw]';
@@ -76,18 +79,25 @@ class SrfService {
   SrfService._internal();
 
   /// Parse matrix string to identify installed SRF cards
-  List<SrfSlotInfo> parseSrfSlots(String matrix, Map<String, String> props) {
+  List<SrfSlotInfo> parseSrfSlots(
+    String matrix,
+    Map<String, String> props, {
+    bool isIq5 = false,
+  }) {
     final list = <SrfSlotInfo>[];
     if (matrix.isEmpty || matrix == '0000' || matrix == 'N/A') return list;
 
     // Slot 1: GE / Interlogix 319.5 MHz
     final slot1Card = props['qolsys.srf_slot_one.card'] ?? '';
     final slot1Fw = props['qolsys.srf_slot_one.fw'] ?? '';
-    if (slot1Card == '1' || slot1Fw.isNotEmpty) {
+    if (slot1Card == '1' ||
+        slot1Fw.isNotEmpty ||
+        (matrix.isNotEmpty && matrix[0] == '1')) {
       list.add(
         SrfSlotInfo(
           slotNumber: 1,
-          serviceName: 'srfservice_ttyHSL1',
+          serviceName: isIq5 ? 'srfservice_ttyHSLX' : 'srfservice_ttyHSL1',
+          goldenServiceName: 'srfservice_ttyHSL1',
           fw: slot1Fw.isEmpty ? 'N/A' : slot1Fw,
           frequency: '319.5 MHz',
           brand: 'GE',
@@ -98,11 +108,14 @@ class SrfService {
     // Slot 2: DSC 433 MHz
     final slot2Card = props['qolsys.srf_slot_two.card'] ?? '';
     final slot2Fw = props['qolsys.srf_slot_two.fw'] ?? '';
-    if (slot2Card == '1' || slot2Fw.isNotEmpty) {
+    if (slot2Card == '1' ||
+        slot2Fw.isNotEmpty ||
+        (matrix.length >= 2 && matrix[1] == '1')) {
       list.add(
         SrfSlotInfo(
           slotNumber: 2,
-          serviceName: 'srfservice_ttyHSL2',
+          serviceName: isIq5 ? 'srfservice_ttyHSLX' : 'srfservice_ttyHSL2',
+          goldenServiceName: 'srfservice_ttyHSL2',
           fw: slot2Fw.isEmpty ? 'N/A' : slot2Fw,
           frequency: '433 MHz',
           brand: 'DSC',
@@ -110,14 +123,48 @@ class SrfService {
       );
     }
 
+    // Slot 3: GE / DSC / Honeywell (Standard on IQ5, typically GE 319.5 MHz)
+    final slot3Card = props['qolsys.srf_slot_three.card'] ?? '';
+    final slot3Fw = props['qolsys.srf_slot_three.fw'] ?? '';
+    final slot3Proto = props['qolsys.slot_three.protocol'] ?? '';
+    if (slot3Card == '1' ||
+        slot3Fw.isNotEmpty ||
+        (matrix.length >= 3 && matrix[2] == '1')) {
+      String freq = '319.5 MHz';
+      String brand = 'GE';
+      String goldenService = 'srfservice_ttyHSL1';
+      if (slot3Fw.contains('-D') || slot3Proto == '2') {
+        freq = '433 MHz';
+        brand = 'DSC';
+        goldenService = 'srfservice_ttyHSL2';
+      } else if (slot3Fw.contains('-H') || slot3Proto == '4') {
+        freq = '345 MHz';
+        brand = 'Honeywell';
+        goldenService = 'srfservice_ttyHSL4';
+      }
+      list.add(
+        SrfSlotInfo(
+          slotNumber: 3,
+          serviceName: isIq5 ? 'srfservice_ttyHSLX' : 'srfservice_ttyHSL3',
+          goldenServiceName: goldenService,
+          fw: slot3Fw.isEmpty ? 'N/A' : slot3Fw,
+          frequency: freq,
+          brand: brand,
+        ),
+      );
+    }
+
     // Slot 4: Honeywell / 2GIG 345 MHz
     final slot4Card = props['qolsys.srf_slot_four.card'] ?? '';
     final slot4Fw = props['qolsys.srf_slot_four.fw'] ?? '';
-    if (slot4Card == '1' || slot4Fw.isNotEmpty) {
+    if (slot4Card == '1' ||
+        slot4Fw.isNotEmpty ||
+        (matrix.length >= 4 && matrix[3] == '1')) {
       list.add(
         SrfSlotInfo(
           slotNumber: 4,
-          serviceName: 'srfservice_ttyHSL4',
+          serviceName: isIq5 ? 'srfservice_ttyHSLX' : 'srfservice_ttyHSL4',
+          goldenServiceName: 'srfservice_ttyHSL4',
           fw: slot4Fw.isEmpty ? 'N/A' : slot4Fw,
           frequency: '345 MHz',
           brand: 'Honeywell',
@@ -279,6 +326,42 @@ class SrfService {
       }
     }
 
+    // Fallback: check qolsys.srf.card, qolsys.srf_slot_three.card, or persist.qolsys.hwd.matrix
+    if (matrix.isEmpty || matrix == '0000' || matrix == 'N/A') {
+      final srfSlot3 = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.srf_slot_three.card',
+      ])).trim();
+      final srfCard = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.srf.card',
+      ])).trim();
+      final hwdMatrix = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'persist.qolsys.hwd.matrix',
+      ])).trim();
+      if (srfSlot3 == '1' ||
+          hwdMatrix.contains('-G') ||
+          hwdMatrix.contains('-H') ||
+          hwdMatrix.contains('-D')) {
+        matrix = '0010';
+      } else if (srfCard == '1') {
+        matrix = '1000';
+      }
+    }
+
     if (matrix.isEmpty || matrix == '0000' || matrix == 'N/A') {
       logger.info(
         '[SrfService] No SRF card in matrix on DUT $dutSerial after retries',
@@ -292,16 +375,15 @@ class SrfService {
 
     // 2. Ensure srfservice is started & ready in ServiceManager
     for (var i = 1; i <= 6; i++) {
-      final chk = await runCmd([
+      final srvList = await runCmd([
         'adb',
         '-s',
         dutSerial,
         'shell',
         'service',
-        'check',
-        'srfservice',
+        'list',
       ]);
-      if (chk.contains('found')) break;
+      if (srvList.contains('srfservice')) break;
       if (i == 1 || i == 3) {
         logger.info('[SrfService] Starting srf services on $dutSerial...');
         await runCmd(['adb', '-s', dutSerial, 'shell', 'start', 'srfslotd']);
@@ -310,15 +392,32 @@ class SrfService {
       await Future.delayed(const Duration(seconds: 1));
     }
 
+    // Detect if DUT runs srfservice_ttyHSLX (IQ5)
+    final isIq5 = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'service',
+      'check',
+      'srfservice_ttyHSLX',
+    ])).contains('found');
+
     // 3. Read slot properties
     final props = <String, String>{};
     final propKeys = [
       'qolsys.srf_slot_one.card',
       'qolsys.srf_slot_one.fw',
+      'qolsys.slot_one.protocol',
       'qolsys.srf_slot_two.card',
       'qolsys.srf_slot_two.fw',
+      'qolsys.slot_two.protocol',
+      'qolsys.srf_slot_three.card',
+      'qolsys.srf_slot_three.fw',
+      'qolsys.slot_three.protocol',
       'qolsys.srf_slot_four.card',
       'qolsys.srf_slot_four.fw',
+      'qolsys.slot_four.protocol',
     ];
 
     for (final key in propKeys) {
@@ -332,7 +431,7 @@ class SrfService {
       ])).trim();
     }
 
-    final slots = parseSrfSlots(matrix, props);
+    final slots = parseSrfSlots(matrix, props, isIq5: isIq5);
     if (slots.isEmpty) {
       return SrfResult(
         status: SrfStatus.notInstalled,
@@ -359,7 +458,7 @@ class SrfService {
       }
     }
 
-    // 4. RF transmission via Golden Panel
+    // 5. RF transmission via Golden Panel
     if (goldenSerial == null || goldenSerial.isEmpty) {
       logger.info('[SrfService] Golden Panel not provided. Reporting MCU OK.');
       return SrfResult(
@@ -370,10 +469,13 @@ class SrfService {
       );
     }
 
-    // Trigger Golden Panel for each slot
+    // Trigger Golden Panel for each slot using its goldenServiceName
     bool allTransmitted = true;
     for (final slot in slots) {
-      final ok = await triggerGoldenTransmit(goldenSerial, slot.serviceName);
+      final ok = await triggerGoldenTransmit(
+        goldenSerial,
+        slot.goldenServiceName,
+      );
       if (!ok) allTransmitted = false;
     }
 

@@ -1,13 +1,13 @@
-# Hướng Dẫn Sử Dụng JA DUT Info (v2.4.0)
+# Hướng Dẫn Sử Dụng JA DUT Info (v2.4.1)
 
-Ứng dụng **JA DUT Info** là công cụ giám sát thông số phần cứng DUT trạm sản xuất thông minh dạng widget nổi màn hình, tích hợp khởi động cùng Windows (Autostart), thanh capsule đổi DUT nhanh trực quan, phát hiện hoàn tất khởi động (Boot Completion Detection), quét lặp thông số đa tầng (Multi-Retry), kiểm tra sóng vô tuyến không dây RF tự động và cập nhật qua mạng nội bộ LAN Over-The-Air (OTA).
+Ứng dụng **JA DUT Info** là công cụ giám sát thông số phần cứng DUT trạm sản xuất thông minh dạng widget nổi màn hình, tích hợp hỗ trợ phần cứng IQ5 (PowerG V4 & SRF Slot 3), khởi động cùng Windows (Autostart), thanh capsule đổi DUT nhanh trực quan, phát hiện hoàn tất khởi động (Boot Completion Detection), quét lặp thông số đa tầng (Multi-Retry), kiểm tra sóng vô tuyến không dây RF tự động và cập nhật qua mạng nội bộ LAN Over-The-Air (OTA).
 
 ---
 
 ## 1. Cài Đặt & Gỡ Cài Đặt Ứng Dụng
 
 ### 1.1. Cài đặt 1-Click (Không cần quyền Quản trị viên Administrator)
-1. Giải nén gói phát hành `JA_DUT_Info_v2.4.0_Windows_x64.zip`.
+1. Giải nén gói phát hành `JA_DUT_Info_v2.4.1_Windows_x64.zip`.
 2. Chạy đúp chuột vào tệp `install.bat` (hoặc chạy lệnh `install.bat /silent` trong kịch bản tự động).
 3. Ứng dụng sẽ được cài đặt trực tiếp vào:
    ```text

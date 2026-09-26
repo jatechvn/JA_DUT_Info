@@ -1,32 +1,27 @@
-# JA DUT Info — Release Notes v2.4.0
+# JA DUT Info — Release Notes v2.4.1
 
-Phiên bản **v2.4.0** mang đến tính năng **Tự động khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan nổi phía trên thẻ PCASN (`DutSwitchHeader`)**, **Tái cấu trúc tương tác thẻ RF**, và **Tối ưu hóa quy trình đóng gói phát hành**.
+Phiên bản **v2.4.1** mang đến hỗ trợ toàn diện cho nền tảng phần cứng **IQ5 (IQP5 / IQH5)**, bao gồm quy trình chẩn đoán **PowerG V4 Bootloader / MCU**, nhận diện ma trận **SRF Slot 3 & ttyHSLX**, chuẩn hóa đọc **IMEI** và cảnh báo thay màn hình **LCMPN** trên IQ5.
 
 ---
 
-## 🌟 Điểm Mới Nổi Bật trên v2.4.0
+## 🌟 Điểm Mới Nổi Bật trên v2.4.1
 
-### 1. ⚡ Tùy Chọn Khởi Động Cùng Windows (Windows Autostart Option)
-- **Mặc định bật khi cài đặt:** Bộ cài `install.bat` tự động đăng ký khóa `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\JA_DUT_Info` (không yêu cầu quyền Quản trị viên Administrator).
-- **Gỡ bỏ sạch sẽ:** `uninstall.bat` và `uninstall.ps1` tự động làm sạch khóa Registry khi gỡ bỏ ứng dụng.
-- **Bật/Tắt 1-Click trong App:** Nhấp chuột phải vào Chathead bubble, chọn mục **`[✓] Khởi động cùng Windows`** để bật hoặc tắt bất kỳ lúc nào kèm thông báo xác nhận tức thời.
+### 1. ⚡ Hỗ Trợ Chẩn Đoán PowerG V4 Trên Nền Tảng IQ5
+- **Tự động nhận diện IQ5:** Quét tiền tố PCASN `QB95` và `qolsys.sys.config` (`IQP5`, `IQH5`).
+- **Giao thức PowerG V4 Bootloader:** Tự động thực thi `powergv4bootload -s <slot> -c 1` để kiểm tra toàn vẹn MCU và sóng vô tuyến Radio.
+- **Tương thích đa phiên bản thư viện:** Tự động giải mã phản hồi trên cả PowerG Library v3.0 và v3.15+ (`PGHOST Received hello!`, `Found version:`, `Operation Result: SUCCESS`), trích xuất chuẩn xác phiên bản Firmware và tần số hoạt động (915 MHz US/NA hoặc 868 MHz EU).
 
-### 2. 📱 Thanh Capsule Đổi DUT Nhanh Nổi Trên Thẻ PCASN (`DutSwitchHeader`)
-- Thiết kế thanh capsule mỏng (cao 18px, rộng 175px) hiển thị trực quan thông số thiết bị: Icon `📱` + `DUT: <serial> (<vị_trí>/<tổng_số>)` + Nút chip chuyển đổi `[⇄ ĐỔI]`.
-- **Thao tác 1-Click:** Nhấp chuột trực tiếp vào capsule để chuyển đổi xoay vòng sang DUT tiếp theo với thông báo xác nhận `Đã chuyển sang DUT: <serial>`.
-- **Thông minh & Thích ứng theo vị trí:**
-  - Tự động ẩn khi chỉ có 1 DUT để giữ giao diện tối giản; tự động xuất hiện khi có $\ge 2$ thiết bị DUT kết nối.
-  - Vị trí tự căn lệch đối xứng tránh va chạm với Chathead bubble hoặc nhãn Station.
-  - Đồng bộ hiệu ứng nảy / thu gọn ăn khớp 100% với các thẻ thông số.
-  - Tích hợp Win32 Native Hit-Test chống click xuyên thấu nền.
+### 2. 📡 Nhận Diện SRF Slot 3 & Dịch Vụ ttyHSLX
+- **Hỗ trợ Slot 3:** Tự động nhận diện khe cắm Slot 3 chuẩn trên IQ5 (mặc định GE 319.5 MHz, linh hoạt nhận diện DSC 433 MHz hoặc Honeywell 345 MHz dựa theo Firmware flag và protocol).
+- **Ánh xạ dịch vụ phát sóng Golden Panel:** Phát hiện dịch vụ `srfservice_ttyHSLX` trên IQ5 và tự động ánh xạ sang `goldenServiceName` (`srfservice_ttyHSL1`, `srfservice_ttyHSL2`, `srfservice_ttyHSL4`) để kích hoạt Golden Panel truyền phát tín hiệu kiểm thử đối soát chính xác.
+- **Cơ chế dự phòng ma trận:** Bổ sung fallback kiểm tra `qolsys.srf.card`, `qolsys.srf_slot_three.card`, và `persist.qolsys.hwd.matrix` chống kết luận `N/A` sớm.
 
-### 3. 🎯 Tái Cấu Trúc Tương Tác Thẻ RF (RF Card Tap & Layout Refactor)
-- Nhấp chuột vào bất kỳ đâu trên hàng thẻ RF để kích hoạt kiểm tra lại sóng vô tuyến (`retestRf()`).
-- Nhấp vào biểu tượng cài đặt `tune` ở cuối hàng để mở hộp thoại Chẩn đoán Bento chi tiết (`RfDiagnosticsDialog`).
-- Loại bỏ nút refresh riêng lẻ để giải phóng toàn bộ không gian ngang cho chữ marquee cuộn thông số RF.
+### 3. 🔍 Chuẩn Hóa Đọc IMEI & Cảnh Báo LCMPN Trên IQ5
+- **Đọc IMEI:** Tự động ưu tiên lệnh `testeepapi r imeino` trên IQ5, fallback sang `testeepapi r imei` với kiểm tra regex số nguyên `^\d+$`.
+- **Cảnh báo LCMPN:** Tự động phát hiện PCASN `QB95` bên cạnh tiền tố SYSSN `QP5`, `QH5`, `QP4` để hiển thị: *"Chú ý Panel này không được chạy lại màn hình"*.
 
-### 4. 📦 Tối Ưu Hóa Kịch Bản Đóng Gói Phát Hành (`build.bat` & `package_dist.ps1`)
-- Chuyển đổi cơ chế đồng bộ sang Robocopy `/MIR` in-place, loại bỏ triệt để lỗi xung đột khóa file `ERROR_SHARING_VIOLATION` khi đóng gói vào `dist/`.
+### 4. 🧪 Tối Ưu Hóa Live Test Phần Cứng
+- Đảm bảo chu trình ngầm của pipeline RF hoàn tất trước khi đối soát kết quả (`!monitor.isRfTesting`).
 
 ---
 

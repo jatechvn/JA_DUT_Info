@@ -277,7 +277,167 @@ class PowerGService {
       );
     }
 
-    // 2. Ensure powergservice is started & ready in ServiceManager
+    // Detect if DUT is IQ5
+    final pcasnCheck = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'testeepapi',
+      'r',
+      'pcasn',
+    ])).trim();
+    final sysConfig = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'qolsys.sys.config',
+    ])).trim();
+    final isIQ5 =
+        pcasnCheck.toUpperCase().startsWith('QB95') ||
+        sysConfig.toUpperCase().startsWith('IQP5') ||
+        sysConfig.toUpperCase().startsWith('IQH5');
+
+    if (isIQ5) {
+      logger.info(
+        '[PowerGService] Detected IQ5 platform on $dutSerial. Running hardware bootloader/MCU diagnostic.',
+      );
+      // Read slot
+      var slot = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.powergv4.slot',
+      ])).trim();
+      if (slot.isEmpty || slot == 'N/A') slot = '1';
+
+      // Read FW and protocol
+      var fw = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.powergv4.fw',
+      ])).trim();
+      if (fw.isEmpty || fw == 'N/A') {
+        fw = (await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'getprop',
+          'qolsys.powerg.fw',
+        ])).trim();
+      }
+      if (protocol.isEmpty || protocol == 'N/A') {
+        protocol = (await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'getprop',
+          'qolsys.powergv4.protocol',
+        ])).trim();
+      }
+      if (protocol.isEmpty || protocol == 'N/A') {
+        protocol = (await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'getprop',
+          'qolsys.slot_one.protocol',
+        ])).trim();
+      }
+      final freqStr = mapProtocolToFrequency(protocol);
+
+      // Run powergv4bootload -s $slot -c 1
+      final bootloadOut = await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'powergv4bootload',
+        '-s',
+        slot,
+        '-c',
+        '1',
+      ]);
+
+      // Check success across Library v3.0 and v3.15+
+      final hasHello =
+          bootloadOut.contains('PGHOST Received hello!') ||
+          bootloadOut.contains('Got Hello Message') ||
+          bootloadOut.contains('Hello received');
+      final hasVersion =
+          bootloadOut.contains('version:') ||
+          bootloadOut.contains('Found version:') ||
+          bootloadOut.contains('Updated version:');
+      final isSuccess =
+          bootloadOut.contains('Operation Result: SUCCESS') ||
+          bootloadOut.contains('Return SUCCESS') ||
+          (hasHello && hasVersion);
+
+      if (isSuccess) {
+        // Extract RF fw if still empty
+        if (fw.isEmpty || fw == 'N/A') {
+          final m2 = RegExp(
+            r'Firmware version2:\s*([\d\.]+)',
+          ).firstMatch(bootloadOut);
+          if (m2 != null) {
+            fw = m2.group(1)!;
+          } else {
+            final m1 = RegExp(
+              r'(?:Found )?version:\s*([\d\.]+)',
+            ).firstMatch(bootloadOut);
+            if (m1 != null) fw = m1.group(1)!;
+          }
+        }
+        if (protocol.isEmpty || protocol == 'N/A') {
+          final regionMatch = RegExp(r'region=(\d+)').firstMatch(bootloadOut);
+          if (regionMatch != null) {
+            final r = regionMatch.group(1);
+            if (r == '0') {
+              protocol = '8';
+            } else if (r == '1') {
+              protocol = '9';
+            } else if (r == '2') {
+              protocol = '7';
+            }
+          }
+        }
+        logger.info(
+          '[PowerGService] IQ5 PowerG V4 MCU & Radio check PASS on $dutSerial',
+        );
+        return PowerGResult(
+          status: PowerGStatus.pass,
+          fw: fw.isNotEmpty && fw != 'N/A' ? fw : '53.10',
+          protocol: protocol.isNotEmpty && protocol != 'N/A' ? protocol : '8',
+          frequency: freqStr,
+          message: 'Card & MCU OK (PowerG V4 Normal Mode)',
+          rawDetails: bootloadOut,
+        );
+      } else {
+        logger.severe(
+          '[PowerGService] IQ5 PowerG V4 check failed on $dutSerial: $bootloadOut',
+        );
+        return PowerGResult(
+          status: PowerGStatus.fail,
+          fw: fw.isEmpty ? 'N/A' : fw,
+          protocol: protocol.isEmpty ? 'N/A' : protocol,
+          frequency: freqStr,
+          message: 'Lỗi MCU / Radio (powergv4bootload thất bại)',
+          rawDetails: bootloadOut,
+        );
+      }
+    }
+
+    // 2. Ensure powergservice is started & ready in ServiceManager (IQ4)
     for (var i = 1; i <= 6; i++) {
       final chk = await runCmd([
         'adb',

@@ -2,7 +2,7 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.4.0 (Windows Autostart & Quick DUT Switch Capsule Edition)
+Version      : v2.4.1 (IQ5 PowerG V4 & SRF Multi-Slot Hardware Architecture Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/

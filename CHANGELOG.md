@@ -4,6 +4,25 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+## [2.4.1] - 2026-09-26 — *IQ5 PowerG V4 & SRF Multi-Slot Hardware Architecture Edition*
+
+### 🚀 Enhancements & Hardware Architecture Support
+- **Hỗ Trợ Nền Tảng Phần Cứng IQ5 (IQ5 Platform Support):**
+  - **Tự động nhận diện thiết bị IQ5:** Nhận diện qua tiền tố PCASN `QB95` hoặc thuộc tính hệ thống `qolsys.sys.config` (`IQP5`, `IQH5`).
+  - **Chẩn đoán PowerG V4 Bootloader / MCU trên IQ5:** Tự động gọi `powergv4bootload -s <slot> -c 1` để kiểm tra toàn diện MCU và Radio của card PowerG V4. Hỗ trợ nhận diện phản hồi trên cả PowerG Library v3.0 và v3.15+ (`PGHOST Received hello!`, `Found version:`, `Operation Result: SUCCESS`), tự động trích xuất Firmware và tần số hoạt động.
+  - **Chẩn đoán SRF Slot 3 & Ma Trận Đa Slot trên IQ5:** Bổ sung xử lý Slot 3 (chuẩn trên IQ5, mặc định GE 319.5 MHz, hỗ trợ chuyển đổi linh hoạt sang DSC 433 MHz hoặc Honeywell 345 MHz dựa theo Firmware flag và protocol).
+  - **Tương thích `srfservice_ttyHSLX`:** Tự động phát hiện dịch vụ `srfservice_ttyHSLX` trên IQ5 và ánh xạ chuẩn `goldenServiceName` (`srfservice_ttyHSL1`, `srfservice_ttyHSL2`, `srfservice_ttyHSL4`) để kích hoạt Golden Panel truyền nhận sóng chính xác.
+  - **Cơ chế dự phòng ma trận SRF:** Bổ sung fallback kiểm tra `qolsys.srf.card`, `qolsys.srf_slot_three.card`, và `persist.qolsys.hwd.matrix` chống kết luận `N/A` sớm.
+- **Đọc IMEI Chuẩn Hóa Trên IQ5:**
+  - Ưu tiên lệnh `testeepapi r imeino` trên IQ5 với cơ chế dự phòng `testeepapi r imei`.
+  - Kiểm tra tính hợp lệ bằng biểu thức chính quy số nguyên `^\d+$` nghiêm ngặt.
+- **Cảnh Báo Thay Màn Hình LCMPN Trên IQ5:**
+  - Nhận diện PCASN `QB95` bên cạnh tiền tố SYSSN `QP5`, `QH5`, `QP4` để hiển thị chính xác cảnh báo: *"Chú ý Panel này không được chạy lại màn hình"*.
+- **Tối Ưu Hóa Live Test Phần Cứng:**
+  - Bổ sung điều kiện kiểm tra `!monitor.isRfTesting` trong `test/adb_monitor_live_test.dart` đảm bảo chu trình kiểm thử RF hoàn tất trước khi đối soát kết quả.
+
+---
+
 ## [2.4.0] - 2026-09-25 — *Windows Autostart & Quick DUT Switch Capsule Edition*
 
 ### 🚀 Enhancements & New Features

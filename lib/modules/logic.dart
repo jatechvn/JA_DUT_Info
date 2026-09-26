@@ -381,10 +381,12 @@ class AdbMonitor extends ChangeNotifier {
 
     // Pipeline task for IMEI with retry and fallback
     tasks.add(() async {
+      final isIq5Device = pcasnVal.toUpperCase().startsWith('QB95');
       var imeiVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
         if (_currentDut != serial) return;
         try {
+          var cmd = isIq5Device ? 'imeino' : 'imei';
           var val = await runCmd([
             'adb',
             '-s',
@@ -392,10 +394,10 @@ class AdbMonitor extends ChangeNotifier {
             'shell',
             'testeepapi',
             'r',
-            'imei',
+            cmd,
           ]);
           var cleanVal = val.trim().replaceAll(RegExp(r'\s+'), '');
-          final isNumeric =
+          var isNumeric =
               cleanVal.isNotEmpty && RegExp(r'^\d+$').hasMatch(cleanVal);
           if (!isNumeric) {
             val = await runCmd([
@@ -405,13 +407,13 @@ class AdbMonitor extends ChangeNotifier {
               'shell',
               'testeepapi',
               'r',
-              'imeino',
+              isIq5Device ? 'imei' : 'imeino',
             ]);
             cleanVal = val.trim().replaceAll(RegExp(r'\s+'), '');
+            isNumeric =
+                cleanVal.isNotEmpty && RegExp(r'^\d+$').hasMatch(cleanVal);
           }
-          if (cleanVal.isNotEmpty &&
-              !cleanVal.toLowerCase().contains('error') &&
-              !cleanVal.toLowerCase().contains('not found')) {
+          if (isNumeric) {
             imeiVal = cleanVal;
             break;
           }
@@ -508,10 +510,12 @@ class AdbMonitor extends ChangeNotifier {
     await Future.wait([...tasks, splashTimer]);
 
     if (_currentDut == serial) {
-      // Check if SYSSN starts with QP5, QH5, or QP4 to override LCMPN
+      // Check if PCASN starts with QB95 or SYSSN starts with QP5, QH5, or QP4 to override LCMPN
       final syssnVal = _info['SYSSN'] ?? '';
       final syssnUpper = syssnVal.toUpperCase();
-      if (syssnUpper.startsWith('QP5') ||
+      final pcasnVal = _info['PCASN'] ?? '';
+      if (pcasnVal.toUpperCase().startsWith('QB95') ||
+          syssnUpper.startsWith('QP5') ||
           syssnUpper.startsWith('QH5') ||
           syssnUpper.startsWith('QP4')) {
         _info['LCMPN'] = 'Chú ý Panel này không được chạy lại màn hình';

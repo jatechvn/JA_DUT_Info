@@ -16,6 +16,7 @@ void main() {
       for (int i = 0; i < 50; i++) {
         await Future.delayed(const Duration(milliseconds: 500));
         if (monitor.deviceConnected &&
+            !monitor.isRfTesting &&
             monitor.powerGResult != null &&
             monitor.info['PCASN'] != 'Đang đọc...') {
           break;
