@@ -1,15 +1,41 @@
-# 💬 JA DUT Info — IQ5 PowerG V4 & SRF Multi-Slot Hardware Architecture Edition (v2.4.1)
+# 💬 JA DUT Info — IQ4 868MHz / 915MHz Multi-Protocol RF & Universal Device Recognition Edition (v2.4.2)
 
-> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Hỗ trợ phần cứng IQ5 (PowerG V4 & SRF Slot 3)**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
+> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.4.1-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.4.2-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.1
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.2
+
+### 1. 📡 Khắc Phục Toàn Diện Nhận Diện Sóng PowerG & Tần Số 868 MHz trên IQ4
+- **Chuỗi giải mã giao thức đa tầng (`_resolveProtocol`):** Mở rộng quét thuộc tính `qolsys.slot_one.protocol` (đặc trưng trên IQ4), `qolsys.powergv4.protocol`, `persist.qolsys.powergv4.protocol`, `qolsys.powerg.protocol`, `persist.qolsys.powerg.protocol`, ma trận thẻ `qolsys.card.matrix` (800M/900M), và `testeepapi r syspn` (IQP4004/IQP4008/IQP4009). Khắc phục triệt để lỗi báo `N/A` tần số hoặc `N/A - Không có card`.
+- **Thuật toán nhận dạng thẻ PowerG thông minh:** Kiểm tra song song `qolsys.powerg.card`, `qolsys.powergv4.card`, mã protocol khả dụng (`9`, `8`, `6`, `4`, `7`), và trạng thái binder `service check powergservice`. Không còn bị kết luận sai `Không có card` khi Android hoàn tất `qolsys.hwd.end`.
+- **Trích xuất Firmware đa nguồn (`_resolveFirmware`):** Dự phòng quét qua `qolsys.powergv4.fw`, `qolsys.powerg.fw`, `qolsys.powerg.radio.fw`, và ma trận `persist.qolsys.hwd.matrix` (ví dụ `83.03` / `83.16`).
+- **Kích phát sóng chính xác theo tần số:** Tự động điều hướng bộ phát `PowerGTransmitter.jar` phát chuẩn `868` khi protocol là 868MHz (EU), `915` khi protocol là 915MHz (NA/LATAM/ANZ), tránh nhiễu chéo khi cắm đồng thời 2 cục phát.
+
+### 2. 🔍 Nhận Diện Chủng Loại Thiết Bị IQ4 & IQ5 Đa Dạng (`isIq4Device` & `isIq5Device`)
+- **Hỗ trợ đầy đủ dải tiền tố PCASN:** Hỗ trợ IQ4 (`QB94`, `QB84`, `QB74`, `QB64`, `QC94`, `QD94`) và IQ5 (`QB95`, `QB85`, `QC95`).
+- **Tích hợp kiểm tra thuộc tính hệ thống Android:** Quét song song `ro.build.product` (`lucy` cho IQ4, `tucson` cho IQ5), `ro.product.device`, và cấu hình `qolsys.sys.config` (`IQP4`, `IQH4`, `IQ4`, `IQP5`, `IQH5`).
+- **Nhận diện chính xác tức thời:** Ngay từ giây đầu tiên kết nối ADB, khối cầu hiển thị đúng biểu tượng `IQ4` hoặc `IQ5` thay vì rơi về `DUT` hoặc `NO DATA`.
+
+### 3. 🎯 Hoàn Thiện Hiển Thị Thẻ RF Trên Giao Diện
+- Thẻ `RF` hiển thị chuẩn trạng thái `PG: PASS (868 MHz (EU))` ngay cả khi thiết bị không trang bị card SRF (như các biến thể IQ4 868MHz).
+- Tránh hiển thị `N/A` khi card PowerG đã được cài đặt và hoạt động tốt.
+
+### 4. 🎨 Biểu Tượng Logo Ứng Dụng Mới (Multi-Resolution Windows Executable Icon)
+- Thay thế icon mặc định bằng bộ biểu tượng chính thức từ `assets/logo/logo.ico`.
+- Nhúng bộ icon đa tầng phân giải chuẩn Windows (256x256, 128x128, 64x64, 48x48, 32x32, 16x16, 32-bit RGBA) sắc nét trên mọi tỉ lệ DPI màn hình, Taskbar và Desktop shortcuts.
+
+### 5. 📦 Đóng Gói Phân Phối Chuẩn & Nâng Cấp Kịch Bản
+- Tối ưu hóa `package_dist.ps1` bảo toàn cấu hình `dist/`, cập nhật gói cài đặt tự động `install.bat` và `uninstall.bat`.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.4.1 & Trước Đó
 
 ### 1. ⚡ Hỗ Trợ Chẩn Đoán PowerG V4 Trên Nền Tảng IQ5
 - **Tự động nhận diện IQ5:** Quét tiền tố PCASN `QB95` và `qolsys.sys.config` (`IQP5`, `IQH5`).

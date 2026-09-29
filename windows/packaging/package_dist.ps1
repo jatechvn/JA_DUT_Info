@@ -83,33 +83,12 @@ foreach ($item in Get-ChildItem -LiteralPath $payload -Force) { Copy-Item -Liter
 $hash = (Get-FileHash -LiteralPath $zip).Hash
 Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS.txt') -Value "$hash *$packageName.zip" -Encoding ascii
 
-# Preserve user configs in dist if any exist
-$savedConfigs = @{}
+# Preserve the entire existing portable installation, including unknown user data.
+# Publish only the validated staged output, without terminating any running app.
+$destination = $dist
 if (Test-Path -LiteralPath $dist) {
-    foreach ($cfg in @('config.ini', 'config.json', 'update_config.json')) {
-        $cfgPath = Join-Path $dist $cfg
-        if (Test-Path -LiteralPath $cfgPath) {
-            $savedConfigs[$cfg] = Get-Content -LiteralPath $cfgPath -Raw
-        }
-    }
-    Get-ChildItem -LiteralPath $dist -Filter "*.zip" -File | Remove-Item -Force -ErrorAction SilentlyContinue
-} else {
-    New-Item -ItemType Directory -Path $dist -Force | Out-Null
+    $destination = Join-Path $root ('dist.release-' + $id)
 }
-
-Get-Process ja_dut_info -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 200
-
-# Robocopy /MIR output into dist
-& robocopy $output $dist /MIR /R:5 /W:1 /NP /NFL /NDL /NJH /NJS | Out-Null
-
-# Restore user config if needed
-foreach ($pair in $savedConfigs.GetEnumerator()) {
-    $targetCfg = Join-Path $dist $pair.Key
-    if (-not (Test-Path -LiteralPath $targetCfg)) {
-        Set-Content -LiteralPath $targetCfg -Value $pair.Value -Encoding utf8
-    }
-}
-
-Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host "[SUCCESS] Published $packageName to $dist ($version). ZIP contents and SHA256 verified."
+if (Test-Path -LiteralPath $destination) { throw "Publication target already exists: $destination" }
+Move-Item -LiteralPath $output -Destination $destination -ErrorAction Stop
+Write-Host "[SUCCESS] Published $packageName to $destination ($version). ZIP contents and SHA256 verified. Existing dist preserved; staging retained: $stage"

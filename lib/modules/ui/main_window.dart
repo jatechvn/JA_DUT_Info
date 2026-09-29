@@ -803,9 +803,20 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     );
 
     if (monitor.deviceConnected) {
-      final pcasn = monitor.info['PCASN'] ?? '';
-      if (monitor.overlayText == 'IQ5' ||
-          pcasn.toUpperCase().startsWith('QB95')) {
+      final pcasn = (monitor.info['PCASN'] ?? '').toUpperCase();
+      final syspn = (monitor.info['SYSPN'] ?? '').toUpperCase();
+      final syssn = (monitor.info['SYSSN'] ?? '').toUpperCase();
+      final overlay = monitor.overlayText;
+
+      final isIq5 =
+          overlay == 'IQ5' ||
+          AdbMonitor.isIq5Device(pcasn: pcasn, syspn: syspn, syssn: syssn);
+
+      final isIq4 =
+          overlay == 'IQ4' ||
+          AdbMonitor.isIq4Device(pcasn: pcasn, syspn: syspn, syssn: syssn);
+
+      if (isIq5) {
         modelName = 'IQ5';
         subLabel = 'DUT READY';
         bubbleGradient = const LinearGradient(
@@ -813,8 +824,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
           end: Alignment.bottomRight,
           colors: [Color(0xFF00B4DB), Color(0xFF0083B0), Color(0xFF0052D4)],
         );
-      } else if (monitor.overlayText == 'IQ4' ||
-          pcasn.toUpperCase().startsWith('QB94')) {
+      } else if (isIq4) {
         modelName = 'IQ4';
         subLabel = 'DUT READY';
         bubbleGradient = const LinearGradient(
@@ -1076,8 +1086,12 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                     val = pg.displaySummary;
                   } else if (srf?.isPass ?? false) {
                     val = srf!.displaySummary;
-                  } else {
+                  } else if (pg.isInstalled) {
                     val = pg.displaySummary;
+                  } else if (srf?.isInstalled ?? false) {
+                    val = srf!.displaySummary;
+                  } else {
+                    val = 'N/A - Không có card';
                   }
                 } else {
                   val = monitor.info['PowerG'] ?? 'N/A';

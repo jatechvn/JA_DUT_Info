@@ -68,6 +68,94 @@ class AdbMonitor extends ChangeNotifier {
   String _stationResult = 'N/A';
   String get stationResult => _stationResult;
 
+  /// Robust device classification for IQ5
+  static bool isIq5Device({
+    String pcasn = '',
+    String sysConfig = '',
+    String buildProduct = '',
+    String productDevice = '',
+    String syspn = '',
+    String syssn = '',
+  }) {
+    final pUpper = pcasn.toUpperCase();
+    final cUpper = sysConfig.toUpperCase();
+    final bLower = buildProduct.toLowerCase();
+    final dLower = productDevice.toLowerCase();
+    final pnUpper = syspn.toUpperCase();
+    final snUpper = syssn.toUpperCase();
+
+    if (pUpper.startsWith('QB95') ||
+        pUpper.startsWith('QB85') ||
+        pUpper.startsWith('QC95')) {
+      return true;
+    }
+    if (cUpper.startsWith('IQP5') ||
+        cUpper.startsWith('IQH5') ||
+        cUpper.startsWith('IQ5')) {
+      return true;
+    }
+    if (pnUpper.startsWith('IQP5') ||
+        pnUpper.startsWith('IQH5') ||
+        pnUpper.startsWith('IQ5')) {
+      return true;
+    }
+    if (snUpper.startsWith('QP5') || snUpper.startsWith('QH5')) {
+      return true;
+    }
+    if (bLower.contains('tucson') || dLower.contains('tucson')) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Robust device classification for IQ4
+  static bool isIq4Device({
+    String pcasn = '',
+    String sysConfig = '',
+    String buildProduct = '',
+    String productDevice = '',
+    String syspn = '',
+    String syssn = '',
+  }) {
+    final pUpper = pcasn.toUpperCase();
+    final cUpper = sysConfig.toUpperCase();
+    final bLower = buildProduct.toLowerCase();
+    final dLower = productDevice.toLowerCase();
+    final pnUpper = syspn.toUpperCase();
+    final snUpper = syssn.toUpperCase();
+
+    if (pUpper.startsWith('QB94') ||
+        pUpper.startsWith('QB84') ||
+        pUpper.startsWith('QB74') ||
+        pUpper.startsWith('QB64') ||
+        pUpper.startsWith('QC94') ||
+        pUpper.startsWith('QD94')) {
+      return true;
+    }
+    if (cUpper.startsWith('IQP4') ||
+        cUpper.startsWith('IQH4') ||
+        cUpper.startsWith('IQ4')) {
+      return true;
+    }
+    if (pnUpper.startsWith('IQP4') ||
+        pnUpper.startsWith('IQH4') ||
+        pnUpper.startsWith('IQ4')) {
+      return true;
+    }
+    if (snUpper.startsWith('QP4') ||
+        snUpper.startsWith('QH4') ||
+        snUpper.startsWith('QPH')) {
+      return true;
+    }
+    if (bLower == 'lucy' ||
+        bLower.contains('lucy') ||
+        dLower == 'lucy' ||
+        dLower.contains('lucy')) {
+      return true;
+    }
+    return false;
+  }
+
   AdbMonitor() {
     start();
   }
@@ -226,13 +314,51 @@ class AdbMonitor extends ChangeNotifier {
     if (_currentDut != serial) return;
     _info['PCASN'] = pcasnVal;
 
+    // Read system properties early to accurately identify IQ4 vs IQ5
+    final sysConfig = (await runCmd([
+      'adb',
+      '-s',
+      serial,
+      'shell',
+      'getprop',
+      'qolsys.sys.config',
+    ])).trim();
+
+    final buildProduct = (await runCmd([
+      'adb',
+      '-s',
+      serial,
+      'shell',
+      'getprop',
+      'ro.build.product',
+    ])).trim();
+
+    final productDevice = (await runCmd([
+      'adb',
+      '-s',
+      serial,
+      'shell',
+      'getprop',
+      'ro.product.device',
+    ])).trim();
+
     // Determine target overlay text
-    if (pcasnVal.toUpperCase().startsWith('QB95')) {
+    if (isIq5Device(
+      pcasn: pcasnVal,
+      sysConfig: sysConfig,
+      buildProduct: buildProduct,
+      productDevice: productDevice,
+    )) {
       _overlayText = 'IQ5';
-    } else if (pcasnVal.toUpperCase().startsWith('QB94')) {
+    } else if (isIq4Device(
+      pcasn: pcasnVal,
+      sysConfig: sysConfig,
+      buildProduct: buildProduct,
+      productDevice: productDevice,
+    )) {
       _overlayText = 'IQ4';
     } else {
-      _overlayText = 'NO DATA';
+      _overlayText = 'DUT';
     }
     notifyListeners();
 
@@ -381,12 +507,16 @@ class AdbMonitor extends ChangeNotifier {
 
     // Pipeline task for IMEI with retry and fallback
     tasks.add(() async {
-      final isIq5Device = pcasnVal.toUpperCase().startsWith('QB95');
+      final isIq5 = AdbMonitor.isIq5Device(
+        pcasn: pcasnVal,
+        sysConfig: sysConfig,
+        buildProduct: buildProduct,
+      );
       var imeiVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
         if (_currentDut != serial) return;
         try {
-          var cmd = isIq5Device ? 'imeino' : 'imei';
+          var cmd = isIq5 ? 'imeino' : 'imei';
           var val = await runCmd([
             'adb',
             '-s',
@@ -407,7 +537,7 @@ class AdbMonitor extends ChangeNotifier {
               'shell',
               'testeepapi',
               'r',
-              isIq5Device ? 'imei' : 'imeino',
+              isIq5 ? 'imei' : 'imeino',
             ]);
             cleanVal = val.trim().replaceAll(RegExp(r'\s+'), '');
             isNumeric =
@@ -510,14 +640,33 @@ class AdbMonitor extends ChangeNotifier {
     await Future.wait([...tasks, splashTimer]);
 
     if (_currentDut == serial) {
-      // Check if PCASN starts with QB95 or SYSSN starts with QP5, QH5, or QP4 to override LCMPN
       final syssnVal = _info['SYSSN'] ?? '';
       final syssnUpper = syssnVal.toUpperCase();
+      final syspnVal = _info['SYSPN'] ?? '';
       final pcasnVal = _info['PCASN'] ?? '';
-      if (pcasnVal.toUpperCase().startsWith('QB95') ||
-          syssnUpper.startsWith('QP5') ||
-          syssnUpper.startsWith('QH5') ||
-          syssnUpper.startsWith('QP4')) {
+
+      final is5 = AdbMonitor.isIq5Device(
+        pcasn: pcasnVal,
+        syspn: syspnVal,
+        syssn: syssnVal,
+      );
+      final is4 = AdbMonitor.isIq4Device(
+        pcasn: pcasnVal,
+        syspn: syspnVal,
+        syssn: syssnVal,
+      );
+
+      // Refine overlayText if it was DUT or NO DATA
+      if (_overlayText == 'DUT' || _overlayText == 'NO DATA') {
+        if (is5) {
+          _overlayText = 'IQ5';
+        } else if (is4) {
+          _overlayText = 'IQ4';
+        }
+      }
+
+      // Check if PCASN or SYSSN indicates LCMPN override
+      if (is5 || syssnUpper.startsWith('QP4')) {
         _info['LCMPN'] = 'Chú ý Panel này không được chạy lại màn hình';
       } else if (syssnUpper.startsWith('QPH') &&
           _info['LCMPN'] == 'Panel ko nạp màn hình') {

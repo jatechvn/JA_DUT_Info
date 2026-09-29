@@ -1,13 +1,13 @@
-# Hướng Dẫn Sử Dụng JA DUT Info (v2.4.1)
+# Hướng Dẫn Sử Dụng JA DUT Info (v2.4.2)
 
-Ứng dụng **JA DUT Info** là công cụ giám sát thông số phần cứng DUT trạm sản xuất thông minh dạng widget nổi màn hình, tích hợp hỗ trợ phần cứng IQ5 (PowerG V4 & SRF Slot 3), khởi động cùng Windows (Autostart), thanh capsule đổi DUT nhanh trực quan, phát hiện hoàn tất khởi động (Boot Completion Detection), quét lặp thông số đa tầng (Multi-Retry), kiểm tra sóng vô tuyến không dây RF tự động và cập nhật qua mạng nội bộ LAN Over-The-Air (OTA).
+Ứng dụng **JA DUT Info** là công cụ giám sát thông số phần cứng DUT trạm sản xuất thông minh dạng widget nổi màn hình, tích hợp nhận diện phần cứng đa nền tảng IQ4 / IQ5, giải mã giao thức PowerG 868MHz & 915MHz đa tầng, hỗ trợ phần cứng IQ5 (PowerG V4 & SRF Slot 3), khởi động cùng Windows (Autostart), thanh capsule đổi DUT nhanh trực quan, phát hiện hoàn tất khởi động (Boot Completion Detection), quét lặp thông số đa tầng (Multi-Retry), kiểm tra sóng vô tuyến không dây RF tự động và cập nhật qua mạng nội bộ LAN Over-The-Air (OTA).
 
 ---
 
 ## 1. Cài Đặt & Gỡ Cài Đặt Ứng Dụng
 
 ### 1.1. Cài đặt 1-Click (Không cần quyền Quản trị viên Administrator)
-1. Giải nén gói phát hành `JA_DUT_Info_v2.4.1_Windows_x64.zip`.
+1. Giải nén gói phát hành `JA_DUT_Info_v2.4.2_Windows_x64.zip`.
 2. Chạy đúp chuột vào tệp `install.bat` (hoặc chạy lệnh `install.bat /silent` trong kịch bản tự động).
 3. Ứng dụng sẽ được cài đặt trực tiếp vào:
    ```text
@@ -58,9 +58,10 @@ Khi kết nối bảng mạch hoặc panel vào máy tính qua cáp USB ADB, wid
 
 ### 3.2. Chu Trình Tự Động Thu Phát Sóng
 - **PowerG (868 MHz / 915 MHz):**
-  - Tự động nhận diện card PowerG, bật chế độ AutoLearn và xóa bộ đệm cũ.
-  - Công cụ phát sóng `PowerGTransmitter.jar` tự động kết nối qua cổng COM thiết bị nạp (Silicon Labs CP210x) và bắn gói tin cảm biến đăng ký.
-  - Sau khi nhận diện thành công, hệ thống đọc ID tin nhắn đăng ký, tắt chế độ AutoLearn và hiển thị kết quả `PASS` kèm Sensor ID.
+  - Tự động quét và giải mã giao thức qua `qolsys.slot_one.protocol` (chuẩn IQ4: 9 = 868MHz, 8 = 915MHz), ma trận phần cứng và kiểm tra trạng thái dịch vụ liên tục.
+  - Bật chế độ AutoLearn và xóa bộ đệm cũ.
+  - Công cụ phát sóng `PowerGTransmitter.jar` tự động kết nối qua cổng COM thiết bị nạp (Silicon Labs CP210x) và bắn gói tin cảm biến đăng ký đúng tần số hoạt động (phát 868MHz cho bản EU, 915MHz cho bản NA/LATAM/ANZ), tránh nhiễu chéo khi cắm đồng thời 2 cục phát.
+  - Sau khi nhận diện thành công, hệ thống đọc ID tin nhắn đăng ký, tắt chế độ AutoLearn và hiển thị kết quả `PASS` kèm Sensor ID (hoặc trạng thái `MCU OK - 868 MHz (EU)` khi kiểm tra MCU/Radio).
 - **SRF Đa Tần Số (319.5 MHz, 345 MHz, 433 MHz):**
   - Tự động giải mã ma trận khe cắm `qolsys.srfslot.matrix` để nhận diện các module tần số hỗ trợ.
   - Gửi mã ping kiểm tra sức khỏe vi điều khiển MCU.

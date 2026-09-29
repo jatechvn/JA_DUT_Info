@@ -90,3 +90,33 @@ covering midpoint/final translation and hidden header, plus registry enable,
 disable, access-denied and process-launch-failure cases. No Windows login,
 interactive native click-through, installer execution or Release rebuild performed.
 Next: validate these two behaviors on Windows with a newly built executable.
+
+# v2.4.2 source review — 2026-09-28
+
+User confirms their build runs. Current analyzer clean; four isolated RF/process/
+boot/metadata suites pass 14/14. No live hardware commands or packaging run.
+Confirmed remaining source findings: matrix 900M is caught by startsWith(9)
+first and mapped to 868; service-check contains(found) also accepts not found;
+IQ5 diagnostic returns RF pass and invents firmware 53.10/protocol 8 when absent;
+packaging again uses /MIR, saves only three config files, and ignores robocopy
+exit status before success/cleanup. Existing tests do not exercise these paths.
+No production code changed in this review. Prioritize safe packaging and exact
+service/matrix parsing, then distinguish MCU readiness from measured RF pass.
+
+# Four review fixes completed — 2026-09-28
+
+Packaging no longer mirrors/deletes dist or kills running apps. Validated output
+moves to dist only when absent; otherwise a unique dist.release-<id> is used.
+Failed publication throws; staging is retained. No real dist publication run.
+PowerG matrix uses complete band tokens (900M -> 8, 800M -> 9), rejecting
+ambiguous/unknown strings. Both binder checks require the exact positive service
+response and reject not found. IQ5 bootloader success returns mcuOk, never RF
+pass, and preserves missing firmware/protocol as N/A instead of inventing values.
+
+Verification: format completed; analyzer clean; 17/17 RF/process/boot/metadata
+tests passed; git diff --check passed. Packaging fixture test preserves hashes
+of config/log/old ZIP/unknown files with a locked log, validates separate output,
+and confirms invalid input fails without another publication. Fixtures retained
+under build/package-test-9c1efa7c0bf64111991e5aee160a8530.
+No Release rebuild or physical RF verification. Next: build and validate IQ4/IQ5
+on hardware; IQ5 RF reception remains unimplemented and explicitly untested.

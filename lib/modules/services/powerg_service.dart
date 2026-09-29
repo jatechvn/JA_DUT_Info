@@ -62,18 +62,56 @@ class PowerGService {
   factory PowerGService() => _instance;
   PowerGService._internal();
 
+  static String protocolFromMatrix(String value) {
+    final matrix = value.trim().toUpperCase();
+    // Match complete band tokens, not their first digit (900M != protocol 9).
+    final bands = RegExp(
+      r'(?:^|[^A-Z0-9])(800M?|868(?:M|MHZ)?|900M?|915(?:M|MHZ)?)(?=$|[^A-Z0-9])',
+    ).allMatches(matrix).map((m) => m.group(1)!.startsWith('8') ? '9' : '8').toSet();
+    if (bands.length == 1) return bands.single;
+    if (matrix == '9' || matrix == '8') return matrix;
+    return '';
+  }
+
+  static bool isPowerGServiceFound(String output) => RegExp(
+    r'^Service\s+powergservice:\s+found\s*$',
+    multiLine: true,
+  ).hasMatch(output.trim());
+
+  static PowerGResult iq5McuResult({
+    required String fw,
+    required String protocol,
+    required String details,
+  }) => PowerGResult(
+    status: PowerGStatus.mcuOk,
+    fw: fw.trim().isEmpty ? 'N/A' : fw,
+    protocol: protocol.trim().isEmpty ? 'N/A' : protocol,
+    frequency: mapProtocolToFrequency(protocol),
+    message: 'Card & MCU OK (Chưa test thu sóng RF)',
+    rawDetails: details,
+  );
+
   /// Map PowerG protocol code to human-readable frequency band
   static String mapProtocolToFrequency(String protocol) {
-    switch (protocol.trim()) {
+    switch (protocol.trim().toUpperCase()) {
       case '9':
+      case '868':
+      case '868M':
+      case '868MHZ':
         return '868 MHz (EU)';
       case '8':
+      case '915':
+      case '915M':
+      case '915MHZ':
         return '915 MHz (NA)';
       case '6':
         return '915 MHz (LATAM)';
       case '4':
         return '915 MHz (ANZ)';
       case '7':
+      case '433':
+      case '433M':
+      case '433MHZ':
         return '433 MHz';
       default:
         if (protocol.isNotEmpty && protocol != 'N/A') {
@@ -81,6 +119,170 @@ class PowerGService {
         }
         return 'N/A';
     }
+  }
+
+  /// Comprehensive protocol resolution supporting IQ4 and IQ5
+  Future<String> _resolveProtocol(
+    String dutSerial, {
+    String currentProtocol = '',
+  }) async {
+    final cur = currentProtocol.trim();
+    if (cur.isNotEmpty && cur != '0' && cur != 'N/A') {
+      return cur;
+    }
+
+    // 1. Primary property on IQ4: qolsys.slot_one.protocol (8 = 915MHz, 9 = 868MHz)
+    var proto = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'qolsys.slot_one.protocol',
+    ])).trim();
+    if (proto.isNotEmpty && proto != '0' && proto != 'N/A') return proto;
+
+    // 2. qolsys.powergv4.protocol
+    proto = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'qolsys.powergv4.protocol',
+    ])).trim();
+    if (proto.isNotEmpty && proto != '0' && proto != 'N/A') return proto;
+
+    // 3. persist.qolsys.powergv4.protocol
+    proto = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'persist.qolsys.powergv4.protocol',
+    ])).trim();
+    if (proto.isNotEmpty && proto != '0' && proto != 'N/A') return proto;
+
+    // 4. qolsys.powerg.protocol
+    proto = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'qolsys.powerg.protocol',
+    ])).trim();
+    if (proto.isNotEmpty && proto != '0' && proto != 'N/A') return proto;
+
+    // 5. persist.qolsys.powerg.protocol
+    proto = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'persist.qolsys.powerg.protocol',
+    ])).trim();
+    if (proto.isNotEmpty && proto != '0' && proto != 'N/A') return proto;
+
+    // 6. qolsys.card.matrix (e.g. 900M or 800M)
+    final matrix = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'qolsys.card.matrix',
+    ])).trim().toUpperCase();
+    final matrixProtocol = protocolFromMatrix(matrix);
+    if (matrixProtocol.isNotEmpty) return matrixProtocol;
+
+    // 7. SYSPN from testeepapi (e.g. IQP4004 is 868MHz, IQP4001 is 915MHz)
+    final syspn = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'testeepapi',
+      'r',
+      'syspn',
+    ])).trim().toUpperCase();
+    if (syspn.contains('4004') ||
+        syspn.contains('4008') ||
+        syspn.contains('4009') ||
+        syspn.contains('868')) {
+      return '9'; // 868 MHz
+    }
+    if (syspn.contains('4001') ||
+        syspn.contains('4002') ||
+        syspn.contains('4003') ||
+        syspn.contains('915')) {
+      return '8'; // 915 MHz
+    }
+
+    return '';
+  }
+
+  /// Comprehensive firmware resolution supporting IQ4 and IQ5
+  Future<String> _resolveFirmware(
+    String dutSerial, {
+    String currentFw = '',
+  }) async {
+    final cur = currentFw.trim();
+    if (cur.isNotEmpty && cur != 'N/A') return cur;
+
+    for (var f = 0; f < 4; f++) {
+      var fw = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.powergv4.fw',
+      ])).trim();
+      if (fw.isNotEmpty && fw != 'N/A') return fw;
+
+      fw = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.powerg.fw',
+      ])).trim();
+      if (fw.isNotEmpty && fw != 'N/A') return fw;
+
+      fw = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'qolsys.powerg.radio.fw',
+      ])).trim();
+      if (fw.isNotEmpty && fw != 'N/A') return fw;
+
+      final hwdMat = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'getprop',
+        'persist.qolsys.hwd.matrix',
+      ])).trim();
+      if (hwdMat.isNotEmpty && hwdMat != 'N/A') {
+        final parts = hwdMat.split(RegExp(r'[,;|\s]+'));
+        for (final p in parts) {
+          if (RegExp(r'^\d+\.\d+$').hasMatch(p)) {
+            return p;
+          }
+        }
+      }
+
+      if (f < 3) await Future.delayed(const Duration(milliseconds: 500));
+    }
+    return 'N/A';
   }
 
   /// Locate the standalone PowerG transmitter runner JAR
@@ -209,61 +411,58 @@ class PowerGService {
         'getprop',
         'qolsys.powergv4.card',
       ])).trim();
-      protocol = (await runCmd([
+      protocol = await _resolveProtocol(dutSerial, currentProtocol: protocol);
+
+      if (cardOut == '1' ||
+          cardV4Out == '1' ||
+          (protocol.isNotEmpty && protocol != '0' && protocol != 'N/A')) {
+        isCardInstalled = true;
+        break;
+      }
+
+      // Check service check powergservice as additional confirmation
+      final srvCheck = (await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'check',
+        'powergservice',
+      ])).trim();
+      if (isPowerGServiceFound(srvCheck)) {
+        isCardInstalled = true;
+        break;
+      }
+
+      final hwdEnd = (await runCmd([
         'adb',
         '-s',
         dutSerial,
         'shell',
         'getprop',
-        'persist.qolsys.powergv4.protocol',
+        'qolsys.hwd.end',
       ])).trim();
-
-      if (cardOut == '1' || cardV4Out == '1') {
-        isCardInstalled = true;
+      if (hwdEnd != '1' && attempt == 1) {
+        logger.info(
+          '[PowerGService] Triggering hardware discovery for PowerG on $dutSerial',
+        );
+        await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'setprop',
+          'qolsys.factory.hwd',
+          '1',
+        ]);
+      } else if (hwdEnd == '1' && attempt >= 5) {
+        // Stop after 5 attempts if hardware discovery confirms no card
         break;
       }
 
-      // If persist protocol exists (e.g. 9 or 8), card was previously detected
-      if (protocol.isNotEmpty && protocol != '0' && protocol != 'N/A') {
-        final hwdEnd = (await runCmd([
-          'adb',
-          '-s',
-          dutSerial,
-          'shell',
-          'getprop',
-          'qolsys.hwd.end',
-        ])).trim();
-        if (hwdEnd != '1' && attempt == 1) {
-          logger.info(
-            '[PowerGService] Triggering hardware discovery for PowerG on $dutSerial',
-          );
-          await runCmd([
-            'adb',
-            '-s',
-            dutSerial,
-            'shell',
-            'setprop',
-            'qolsys.factory.hwd',
-            '1',
-          ]);
-        }
-      } else {
-        final hwdEnd = (await runCmd([
-          'adb',
-          '-s',
-          dutSerial,
-          'shell',
-          'getprop',
-          'qolsys.hwd.end',
-        ])).trim();
-        if (hwdEnd == '1' && attempt >= 3) {
-          // Hardware discovery has completed and confirmed no PowerG card
-          break;
-        }
-      }
-
       if (attempt < 10) {
-        await Future.delayed(const Duration(milliseconds: 1500));
+        await Future.delayed(const Duration(milliseconds: 1200));
       }
     }
 
@@ -297,8 +496,11 @@ class PowerGService {
     ])).trim();
     final isIQ5 =
         pcasnCheck.toUpperCase().startsWith('QB95') ||
+        pcasnCheck.toUpperCase().startsWith('QB85') ||
+        pcasnCheck.toUpperCase().startsWith('QC95') ||
         sysConfig.toUpperCase().startsWith('IQP5') ||
-        sysConfig.toUpperCase().startsWith('IQH5');
+        sysConfig.toUpperCase().startsWith('IQH5') ||
+        sysConfig.toUpperCase().startsWith('IQ5');
 
     if (isIQ5) {
       logger.info(
@@ -316,45 +518,9 @@ class PowerGService {
       if (slot.isEmpty || slot == 'N/A') slot = '1';
 
       // Read FW and protocol
-      var fw = (await runCmd([
-        'adb',
-        '-s',
-        dutSerial,
-        'shell',
-        'getprop',
-        'qolsys.powergv4.fw',
-      ])).trim();
-      if (fw.isEmpty || fw == 'N/A') {
-        fw = (await runCmd([
-          'adb',
-          '-s',
-          dutSerial,
-          'shell',
-          'getprop',
-          'qolsys.powerg.fw',
-        ])).trim();
-      }
-      if (protocol.isEmpty || protocol == 'N/A') {
-        protocol = (await runCmd([
-          'adb',
-          '-s',
-          dutSerial,
-          'shell',
-          'getprop',
-          'qolsys.powergv4.protocol',
-        ])).trim();
-      }
-      if (protocol.isEmpty || protocol == 'N/A') {
-        protocol = (await runCmd([
-          'adb',
-          '-s',
-          dutSerial,
-          'shell',
-          'getprop',
-          'qolsys.slot_one.protocol',
-        ])).trim();
-      }
-      final freqStr = mapProtocolToFrequency(protocol);
+      var fw = await _resolveFirmware(dutSerial);
+      protocol = await _resolveProtocol(dutSerial, currentProtocol: protocol);
+      var freqStr = mapProtocolToFrequency(protocol);
 
       // Run powergv4bootload -s $slot -c 1
       final bootloadOut = await runCmd([
@@ -409,19 +575,13 @@ class PowerGService {
             } else if (r == '2') {
               protocol = '7';
             }
+            freqStr = mapProtocolToFrequency(protocol);
           }
         }
         logger.info(
           '[PowerGService] IQ5 PowerG V4 MCU & Radio check PASS on $dutSerial',
         );
-        return PowerGResult(
-          status: PowerGStatus.pass,
-          fw: fw.isNotEmpty && fw != 'N/A' ? fw : '53.10',
-          protocol: protocol.isNotEmpty && protocol != 'N/A' ? protocol : '8',
-          frequency: freqStr,
-          message: 'Card & MCU OK (PowerG V4 Normal Mode)',
-          rawDetails: bootloadOut,
-        );
+        return iq5McuResult(fw: fw, protocol: protocol, details: bootloadOut);
       } else {
         logger.severe(
           '[PowerGService] IQ5 PowerG V4 check failed on $dutSerial: $bootloadOut',
@@ -448,7 +608,7 @@ class PowerGService {
         'check',
         'powergservice',
       ]);
-      if (chk.contains('found')) {
+      if (isPowerGServiceFound(chk)) {
         break;
       }
       if (i == 1 || i == 3) {
@@ -460,39 +620,9 @@ class PowerGService {
       await Future.delayed(const Duration(seconds: 1));
     }
 
-    // 3. Read firmware with retry
-    var fw = (await runCmd([
-      'adb',
-      '-s',
-      dutSerial,
-      'shell',
-      'getprop',
-      'qolsys.powergv4.fw',
-    ])).trim();
-    if (fw.isEmpty || fw == 'N/A') {
-      for (var f = 0; f < 5; f++) {
-        await Future.delayed(const Duration(seconds: 1));
-        fw = (await runCmd([
-          'adb',
-          '-s',
-          dutSerial,
-          'shell',
-          'getprop',
-          'qolsys.powergv4.fw',
-        ])).trim();
-        if (fw.isNotEmpty && fw != 'N/A') break;
-      }
-    }
-    if (protocol.isEmpty || protocol == 'N/A') {
-      protocol = (await runCmd([
-        'adb',
-        '-s',
-        dutSerial,
-        'shell',
-        'getprop',
-        'persist.qolsys.powergv4.protocol',
-      ])).trim();
-    }
+    // 3. Read firmware and protocol with robust multi-property fallback
+    final fw = await _resolveFirmware(dutSerial);
+    protocol = await _resolveProtocol(dutSerial, currentProtocol: protocol);
     final freqStr = mapProtocolToFrequency(protocol);
 
     // 4. Ping MCU & Radio Check (Transact 200) with retry
@@ -570,9 +700,18 @@ class PowerGService {
       ]);
 
       // 5. Trigger transmitter with frequency awareness
-      final targetFreq = (protocol == '8' || protocol == '6' || protocol == '4')
+      final targetFreq =
+          (protocol == '8' ||
+              protocol == '6' ||
+              protocol == '4' ||
+              protocol == '915' ||
+              protocol.toUpperCase().contains('915'))
           ? '915'
-          : ((protocol == '9') ? '868' : 'all');
+          : ((protocol == '9' ||
+                    protocol == '868' ||
+                    protocol.toUpperCase().contains('868'))
+                ? '868'
+                : 'all');
       final transmitResult = await triggerTransmitter(
         action: 'transmit',
         targetFreq: targetFreq,

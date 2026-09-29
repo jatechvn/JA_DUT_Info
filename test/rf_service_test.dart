@@ -5,6 +5,57 @@ import 'package:ja_dut_info/modules/services/powerg_service.dart';
 import 'package:ja_dut_info/modules/services/srf_service.dart';
 
 void main() {
+  test('matrix bands do not collide with protocol digits', () {
+    for (final value in ['900M', '900', '915MHz', 'card=900M']) {
+      expect(PowerGService.protocolFromMatrix(value), '8');
+    }
+    for (final value in ['800M', '868', '868MHz', 'card=800M']) {
+      expect(PowerGService.protocolFromMatrix(value), '9');
+    }
+    for (final value in ['', 'unknown', '9000', '800M,900M']) {
+      expect(PowerGService.protocolFromMatrix(value), '');
+    }
+  });
+
+  test('missing binder service is not mistaken for found', () {
+    expect(
+      PowerGService.isPowerGServiceFound('Service powergservice: found\r\n'),
+      isTrue,
+    );
+    for (final value in [
+      'Service powergservice: not found',
+      'Service otherservice: found',
+      'error: device not found',
+      '',
+    ]) {
+      expect(PowerGService.isPowerGServiceFound(value), isFalse);
+    }
+  });
+
+  test(
+    'IQ5 bootloader success never claims measured RF or invents metadata',
+    () {
+      final unknown = PowerGService.iq5McuResult(
+        fw: '',
+        protocol: '',
+        details: 'SUCCESS',
+      );
+      expect(unknown.status, PowerGStatus.mcuOk);
+      expect(unknown.isPass, isFalse);
+      expect(unknown.fw, 'N/A');
+      expect(unknown.protocol, 'N/A');
+      expect(unknown.frequency, 'N/A');
+      expect(unknown.displaySummary, contains('Chưa test RF'));
+      final known = PowerGService.iq5McuResult(
+        fw: '83.03',
+        protocol: '9',
+        details: 'SUCCESS',
+      );
+      expect(known.isPass, isFalse);
+      expect(known.fw, '83.03');
+      expect(known.frequency, '868 MHz (EU)');
+    },
+  );
   group('PowerG Service Unit Tests', () {
     test('Protocol to Frequency Mapping', () {
       expect(PowerGService.mapProtocolToFrequency('9'), equals('868 MHz (EU)'));
