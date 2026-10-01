@@ -2,7 +2,7 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.4.3 (IQ4/IQ5 Live SRF Receiver Verification & RF Stability Edition)
+Version      : v2.4.4 (DUT Disconnect & Acquisition Scope Recovery Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/

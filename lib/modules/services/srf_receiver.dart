@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 
 import 'transmitter_process.dart';
+import 'command_scope.dart';
 
 String? srfAirId(String brand) => switch (brand) {
   'GE' => '25390A',
@@ -43,7 +44,10 @@ Future<SrfReceiveResult> runSrfReceiverProcess(
   Duration readyTimeout = const Duration(seconds: 6),
   Duration completionTimeout = const Duration(seconds: 47),
 }) async {
+  final scope = CommandScope.current;
+  scope?.check();
   final process = await Process.start(executable, arguments);
+  scope?.attach(process);
   final ready = Completer<void>();
   final armed = Completer<void>();
   final output = StringBuffer();
@@ -80,6 +84,7 @@ Future<SrfReceiveResult> runSrfReceiverProcess(
     if (!output.toString().split('\n').contains('ARMED:$airId')) {
       throw StateError('Receiver events not enabled');
     }
+    scope?.check();
     transmitted = await transmit().timeout(const Duration(seconds: 8));
     final values = await completion.timeout(completionTimeout);
     final result = ProcessResult(
@@ -103,6 +108,8 @@ Future<SrfReceiveResult> runSrfReceiverProcess(
       await completion;
     }
     return SrfReceiveResult(false, '$error\n$output');
+  } finally {
+    scope?.detach(process);
   }
 }
 

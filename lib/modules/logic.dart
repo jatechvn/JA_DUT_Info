@@ -9,14 +9,19 @@ import 'logger_config.dart';
 import 'services/powerg_service.dart';
 import 'services/srf_service.dart';
 import 'services/boot_gate.dart';
+import 'services/command_scope.dart';
 
 class AdbMonitor extends ChangeNotifier {
   int _loadGeneration = 0;
   bool _bootReady = false;
-  final BootGate _bootGate = BootGate(
-    (serial, property) =>
-        runCmd(['adb', '-s', serial, 'shell', 'getprop', property]),
-  );
+  late final BootGate _bootGate;
+  final Future<String> Function(List<String>) _command;
+  final Future<PowerGResult> Function(String) _verifyPowerG;
+  final Future<SrfResult> Function(String, String?) _verifySrf;
+  final Duration pollInterval;
+  CommandScope? _readScope;
+  bool _loading = false;
+  int _loopEpoch = 0;
   bool _running = false;
   bool get running => _running;
 
@@ -156,37 +161,65 @@ class AdbMonitor extends ChangeNotifier {
     return false;
   }
 
-  AdbMonitor() {
-    start();
+  AdbMonitor({
+    Future<String> Function(List<String>)? command,
+    Future<PowerGResult> Function(String)? powerGVerifier,
+    Future<SrfResult> Function(String, String?)? srfVerifier,
+    this.pollInterval = const Duration(seconds: 2),
+    bool autoStart = true,
+  }) : _verifyPowerG =
+           powerGVerifier ?? ((serial) => PowerGService().verifyDut(serial)),
+       _verifySrf =
+           srfVerifier ??
+           ((serial, golden) =>
+               SrfService().verifyDut(serial, goldenSerial: golden)),
+       _command =
+           command ??
+           ((args) => runCmd(args, timeout: const Duration(seconds: 5))) {
+    _bootGate = BootGate(
+      (serial, property) =>
+          _command(['adb', '-s', serial, 'shell', 'getprop', property]),
+    );
+    if (autoStart) start();
   }
 
   void start() {
     if (_running) return;
     _running = true;
     logger.info('Monitor thread started.');
-    _loop();
+    _loop(++_loopEpoch);
   }
 
   void stop() {
     _running = false;
+    _loopEpoch++;
+    _readScope?.cancel();
+    _readScope = null;
+    _loading = false;
     _loadGeneration++;
     _bootReady = false;
     logger.info('Stopping monitor thread...');
   }
 
-  Future<void> _loop() async {
-    while (_running) {
+  @override
+  void dispose() {
+    stop();
+    super.dispose();
+  }
+
+  Future<void> _loop(int epoch) async {
+    while (_running && epoch == _loopEpoch) {
       try {
         await _checkDevices();
       } catch (e) {
         logger.severe('Error in check devices loop: $e');
       }
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(pollInterval);
     }
   }
 
   Future<List<String>> _getDevices() async {
-    final out = await runCmd(['adb', 'devices']);
+    final out = await _command(['adb', 'devices']);
     final lines = out
         .split('\n')
         .map((l) => l.trim())
@@ -196,11 +229,9 @@ class AdbMonitor extends ChangeNotifier {
     if (lines.length > 1) {
       for (var i = 1; i < lines.length; i++) {
         final line = lines[i];
-        if (line.contains('device') && !line.contains('offline')) {
-          final parts = line.split(RegExp(r'\s+'));
-          if (parts.isNotEmpty) {
-            devices.add(parts[0]);
-          }
+        final parts = line.split(RegExp(r'\s+'));
+        if (parts.length >= 2 && parts[1] == 'device') {
+          devices.add(parts[0]);
         }
       }
     }
@@ -231,7 +262,30 @@ class AdbMonitor extends ChangeNotifier {
   }
 
   Future<void> _loadDut(String serial) async {
+    _readScope?.cancel();
+    final scope = CommandScope();
+    _readScope = scope;
+    _loading = true;
+    try {
+      await scope.run(() => _readDut(serial));
+    } on CommandCancelled {
+      // Normal USB removal, selection change or monitor shutdown.
+    } catch (error) {
+      logger.severe('DUT read failed: $error');
+      if (_running && identical(_readScope, scope)) {
+        _status = 'Lỗi đọc thiết bị. Sẽ kiểm tra lại...';
+        _bootReady = false;
+        notifyListeners();
+      }
+    } finally {
+      if (identical(_readScope, scope)) _loading = false;
+    }
+  }
+
+  Future<void> _readDut(String serial) async {
     final generation = ++_loadGeneration;
+    bool isCurrent() =>
+        _running && _currentDut == serial && _loadGeneration == generation;
     _bootReady = false;
     _isRfTesting = false;
     logger.info('Loading DUT: $serial');
@@ -281,9 +335,9 @@ class AdbMonitor extends ChangeNotifier {
     // 3. Read PCASN with retry up to 5 times (allows I2C/EEPROM to settle)
     String pcasnVal = 'N/A';
     for (var attempt = 1; attempt <= 5; attempt++) {
-      if (_currentDut != serial) return;
+      if (!isCurrent()) return;
       try {
-        final out = await runCmd([
+        final out = await _command([
           'adb',
           '-s',
           serial,
@@ -311,11 +365,11 @@ class AdbMonitor extends ChangeNotifier {
       pcasnVal = 'N/A';
     }
 
-    if (_currentDut != serial) return;
+    if (!isCurrent()) return;
     _info['PCASN'] = pcasnVal;
 
     // Read system properties early to accurately identify IQ4 vs IQ5
-    final sysConfig = (await runCmd([
+    final sysConfig = (await _command([
       'adb',
       '-s',
       serial,
@@ -324,7 +378,7 @@ class AdbMonitor extends ChangeNotifier {
       'qolsys.sys.config',
     ])).trim();
 
-    final buildProduct = (await runCmd([
+    final buildProduct = (await _command([
       'adb',
       '-s',
       serial,
@@ -333,7 +387,7 @@ class AdbMonitor extends ChangeNotifier {
       'ro.build.product',
     ])).trim();
 
-    final productDevice = (await runCmd([
+    final productDevice = (await _command([
       'adb',
       '-s',
       serial,
@@ -341,6 +395,7 @@ class AdbMonitor extends ChangeNotifier {
       'getprop',
       'ro.product.device',
     ])).trim();
+    if (!isCurrent()) return;
 
     // Determine target overlay text
     if (isIq5Device(
@@ -372,9 +427,9 @@ class AdbMonitor extends ChangeNotifier {
     tasks.add(() async {
       var syssnVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
-        if (_currentDut != serial) return;
+        if (!isCurrent()) return;
         try {
-          final out = await runCmd([
+          final out = await _command([
             'adb',
             '-s',
             serial,
@@ -409,7 +464,7 @@ class AdbMonitor extends ChangeNotifier {
         syssnVal = 'Chưa test MMI';
       }
 
-      if (_currentDut != serial) return;
+      if (!isCurrent()) return;
       _info['SYSSN'] = syssnVal;
 
       // Update log session
@@ -440,9 +495,9 @@ class AdbMonitor extends ChangeNotifier {
     tasks.add(() async {
       var cpuVal = '';
       for (var attempt = 1; attempt <= 10; attempt++) {
-        if (_currentDut != serial) return;
+        if (!isCurrent()) return;
         try {
-          var val = await runCmd([
+          var val = await _command([
             'adb',
             '-s',
             serial,
@@ -458,7 +513,7 @@ class AdbMonitor extends ChangeNotifier {
             break;
           }
           // Secondary fallback: gsm.version.baseband1
-          final bb1 = await runCmd([
+          final bb1 = await _command([
             'adb',
             '-s',
             serial,
@@ -475,7 +530,7 @@ class AdbMonitor extends ChangeNotifier {
           }
           // Tertiary fallback: ro.boot.baseband / ro.baseband
           if (attempt >= 5) {
-            final bbRo = await runCmd([
+            final bbRo = await _command([
               'adb',
               '-s',
               serial,
@@ -500,7 +555,7 @@ class AdbMonitor extends ChangeNotifier {
       }
 
       if (cpuVal.isEmpty) cpuVal = 'N/A';
-      if (_currentDut != serial) return;
+      if (!isCurrent()) return;
       _info['CPU'] = cpuVal;
       notifyListeners();
     }());
@@ -514,10 +569,10 @@ class AdbMonitor extends ChangeNotifier {
       );
       var imeiVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
-        if (_currentDut != serial) return;
+        if (!isCurrent()) return;
         try {
           var cmd = isIq5 ? 'imeino' : 'imei';
-          var val = await runCmd([
+          var val = await _command([
             'adb',
             '-s',
             serial,
@@ -530,7 +585,7 @@ class AdbMonitor extends ChangeNotifier {
           var isNumeric =
               cleanVal.isNotEmpty && RegExp(r'^\d+$').hasMatch(cleanVal);
           if (!isNumeric) {
-            val = await runCmd([
+            val = await _command([
               'adb',
               '-s',
               serial,
@@ -553,7 +608,7 @@ class AdbMonitor extends ChangeNotifier {
         if (attempt < 5) await Future.delayed(const Duration(seconds: 1));
       }
       if (imeiVal.isEmpty) imeiVal = 'N/A';
-      if (_currentDut != serial) return;
+      if (!isCurrent()) return;
       _info['IMEI'] = imeiVal;
       notifyListeners();
     }());
@@ -562,9 +617,9 @@ class AdbMonitor extends ChangeNotifier {
     tasks.add(() async {
       var syspnVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
-        if (_currentDut != serial) return;
+        if (!isCurrent()) return;
         try {
-          final val = (await runCmd([
+          final val = (await _command([
             'adb',
             '-s',
             serial,
@@ -592,7 +647,7 @@ class AdbMonitor extends ChangeNotifier {
           RegExp(r'\?{5,}').hasMatch(syspnVal)) {
         syspnVal = 'Chưa test MMI';
       }
-      if (_currentDut != serial) return;
+      if (!isCurrent()) return;
       _info['SYSPN'] = syspnVal;
       notifyListeners();
     }());
@@ -601,9 +656,9 @@ class AdbMonitor extends ChangeNotifier {
     tasks.add(() async {
       var lcmpnVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
-        if (_currentDut != serial) return;
+        if (!isCurrent()) return;
         try {
-          final val = (await runCmd([
+          final val = (await _command([
             'adb',
             '-s',
             serial,
@@ -631,7 +686,7 @@ class AdbMonitor extends ChangeNotifier {
           RegExp(r'\?{5,}').hasMatch(lcmpnVal)) {
         lcmpnVal = 'Panel ko nạp màn hình';
       }
-      if (_currentDut != serial) return;
+      if (!isCurrent()) return;
       _info['LCMPN'] = lcmpnVal;
       notifyListeners();
     }());
@@ -639,7 +694,7 @@ class AdbMonitor extends ChangeNotifier {
     // Wait for commands and timer to finish
     await Future.wait([...tasks, splashTimer]);
 
-    if (_currentDut == serial) {
+    if (isCurrent()) {
       final syssnVal = _info['SYSSN'] ?? '';
       final syssnUpper = syssnVal.toUpperCase();
       final syspnVal = _info['SYSPN'] ?? '';
@@ -680,7 +735,13 @@ class AdbMonitor extends ChangeNotifier {
   }
 
   Future<void> _fetchStation(String syssn, String serial) async {
+    final generation = _loadGeneration;
+    bool isCurrent() =>
+        _running && _currentDut == serial && _loadGeneration == generation;
+    final scope = CommandScope.current;
     final client = HttpClient();
+    void cancelRequest() => client.close(force: true);
+    scope?.onCancel(cancelRequest);
     client.badCertificateCallback =
         (X509Certificate cert, String host, int port) => true;
     try {
@@ -691,12 +752,17 @@ class AdbMonitor extends ChangeNotifier {
           .getUrl(Uri.parse(url))
           .timeout(const Duration(seconds: 5));
       request.headers.set('accept', '*/*');
-      final response = await request.close();
+      final response = await request.close().timeout(
+        const Duration(seconds: 5),
+      );
       if (response.statusCode == 200) {
-        final content = await response.transform(utf8.decoder).join();
+        final content = await response
+            .transform(utf8.decoder)
+            .join()
+            .timeout(const Duration(seconds: 5));
         final trimmed = content.trim();
         if (!trimmed.startsWith('<?xml')) {
-          if (_currentDut == serial) {
+          if (isCurrent()) {
             _stationResult = 'NO DATA';
             notifyListeners();
           }
@@ -713,25 +779,26 @@ class AdbMonitor extends ChangeNotifier {
           result = trimmed;
         }
 
-        if (_currentDut == serial) {
+        if (isCurrent()) {
           _stationResult = result.isEmpty ? 'NO DATA' : result;
           logger.info('Station result for $syssn: $result');
           notifyListeners();
         }
       } else {
-        if (_currentDut == serial) {
+        if (isCurrent()) {
           _stationResult = 'NO DATA';
           notifyListeners();
         }
       }
     } catch (e) {
       logger.severe('Failed to fetch station for $syssn: $e');
-      if (_currentDut == serial) {
+      if (isCurrent()) {
         _stationResult = 'NO DATA';
         notifyListeners();
       }
     } finally {
-      client.close();
+      scope?.removeCallback(cancelRequest);
+      client.close(force: true);
     }
   }
 
@@ -751,29 +818,26 @@ class AdbMonitor extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final pgService = PowerGService();
-      final srfService = SrfService();
-
       // Run PowerG and SRF checks concurrently
-      final pgFuture = pgService.verifyDut(serial);
-      final srfFuture = srfService.verifyDut(
-        serial,
-        goldenSerial: _goldenPanelSerial,
-      );
+      final pgFuture = _verifyPowerG(serial);
+      final srfFuture = _verifySrf(serial, _goldenPanelSerial);
 
-      final pgRes = await pgFuture;
-      if (isCurrent()) {
-        _powerGResult = pgRes;
-        _info['PowerG'] = pgRes.displaySummary;
-        notifyListeners();
-      }
-
-      final srfRes = await srfFuture;
-      if (isCurrent()) {
-        _srfResult = srfRes;
-        _info['SRF'] = srfRes.displaySummary;
-        notifyListeners();
-      }
+      await Future.wait<void>([
+        pgFuture.then((pgRes) {
+          if (isCurrent()) {
+            _powerGResult = pgRes;
+            _info['PowerG'] = pgRes.displaySummary;
+            notifyListeners();
+          }
+        }),
+        srfFuture.then((srfRes) {
+          if (isCurrent()) {
+            _srfResult = srfRes;
+            _info['SRF'] = srfRes.displaySummary;
+            notifyListeners();
+          }
+        }),
+      ]);
     } catch (e) {
       logger.severe('Failed to run RF check for $serial: $e');
       if (isCurrent()) {
@@ -791,16 +855,55 @@ class AdbMonitor extends ChangeNotifier {
   Future<void> retestRf() async {
     if (_currentDut.isEmpty) return;
     logger.info('User requested RF retest for $_currentDut');
-    await _checkRfAsync(_currentDut);
+    final scope = _readScope;
+    if (scope != null) await scope.run(() => _checkRfAsync(_currentDut));
+  }
+
+  void _clearDut() {
+    _readScope?.cancel();
+    _readScope = null;
+    _loading = false;
+    logger.info('All DUTs disconnected (was: $_currentDut)');
+    _currentDut = '';
+    _loadGeneration++;
+    _bootReady = false;
+    _deviceConnected = false;
+    _isSuccessStatus = false;
+    _status = 'Waiting for DUT connection...';
+    _info = {
+      'PCASN': 'N/A',
+      'SYSSN': 'N/A',
+      'SYSPN': 'N/A',
+      'LCMPN': 'N/A',
+      'IMEI': 'N/A',
+      'CPU': 'N/A',
+      'PowerG': 'N/A',
+      'SRF': 'N/A',
+    };
+    _powerGResult = null;
+    _srfResult = null;
+    _isRfTesting = false;
+    _overlayText = 'NO DATA';
+    _showOverlay = true;
+    _stationResult = 'N/A';
+    setDutLogSession(null); // Switch back to startup.log
+    notifyListeners();
   }
 
   Future<void> _checkDevices() async {
+    final epoch = _loopEpoch;
     final devices = await _getDevices();
+    if (!_running || epoch != _loopEpoch) return;
+
+    // Detect disappearance before any per-device metadata commands can stall.
+    if (_currentDut.isNotEmpty && !devices.contains(_currentDut)) {
+      _clearDut();
+    }
     final List<String> activeDuts = [];
     String? detectedGolden;
 
     for (final dev in devices) {
-      final autoRun = (await runCmd([
+      final autoRun = (await _command([
         'adb',
         '-s',
         dev,
@@ -808,6 +911,7 @@ class AdbMonitor extends ChangeNotifier {
         'getprop',
         'persist.auto.run',
       ])).trim();
+      if (!_running || epoch != _loopEpoch) return;
       if (autoRun == '1') {
         detectedGolden = dev;
       } else {
@@ -846,31 +950,7 @@ class AdbMonitor extends ChangeNotifier {
       if (_currentDut.isNotEmpty ||
           _overlayText != 'NO DATA' ||
           !_showOverlay) {
-        logger.info('All DUTs disconnected (was: $_currentDut)');
-        _currentDut = '';
-        _loadGeneration++;
-        _bootReady = false;
-        _deviceConnected = false;
-        _isSuccessStatus = false;
-        _status = 'Waiting for DUT connection...';
-        _info = {
-          'PCASN': 'N/A',
-          'SYSSN': 'N/A',
-          'SYSPN': 'N/A',
-          'LCMPN': 'N/A',
-          'IMEI': 'N/A',
-          'CPU': 'N/A',
-          'PowerG': 'N/A',
-          'SRF': 'N/A',
-        };
-        _powerGResult = null;
-        _srfResult = null;
-        _isRfTesting = false;
-        _overlayText = 'NO DATA';
-        _showOverlay = true;
-        _stationResult = 'N/A';
-        setDutLogSession(null); // Switch back to startup.log
-        notifyListeners();
+        _clearDut();
       }
     } else {
       // If our current selected DUT is no longer connected, select the first available one
@@ -879,8 +959,8 @@ class AdbMonitor extends ChangeNotifier {
         logger.info(
           'Current DUT disconnected or none selected, selecting first available: $newDut',
         );
-        await _loadDut(newDut);
-      } else if (_currentDut.isNotEmpty && _deviceConnected) {
+        unawaited(_loadDut(newDut));
+      } else if (_currentDut.isNotEmpty && _deviceConnected && !_loading) {
         // Check if currently connected DUT has started a reboot
         try {
           final serial = _currentDut;
@@ -889,7 +969,7 @@ class AdbMonitor extends ChangeNotifier {
               .timeout(const Duration(seconds: 5));
           if (!_running || _currentDut != serial) return;
           if (!ready || !_bootReady) {
-            await _loadDut(serial);
+            unawaited(_loadDut(serial));
           }
         } catch (_) {}
       }

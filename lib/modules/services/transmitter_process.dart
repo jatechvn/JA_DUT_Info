@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'command_scope.dart';
 
 /// Starts the executable directly so cancellation targets Java, not cmd.exe.
 Future<ProcessResult> runTransmitterProcess(
@@ -10,11 +11,14 @@ Future<ProcessResult> runTransmitterProcess(
   Duration timeout = const Duration(seconds: 20),
   void Function(Process)? onStarted,
 }) async {
+  final scope = CommandScope.current;
+  scope?.check();
   final process = await Process.start(
     executable,
     arguments,
     workingDirectory: workingDirectory,
   );
+  scope?.attach(process);
   onStarted?.call(process);
   final output = process.stdout
       .transform(const Utf8Decoder(allowMalformed: true))
@@ -25,12 +29,15 @@ Future<ProcessResult> runTransmitterProcess(
   final completion = Future.wait<Object>([process.exitCode, output, errors]);
   try {
     final values = await completion.timeout(timeout);
+    scope?.check();
     return ProcessResult(process.pid, values[0] as int, values[1], values[2]);
   } on TimeoutException {
     process.kill(ProcessSignal.sigkill);
     // Do not release the caller until the owned process has exited.
     await completion;
     rethrow;
+  } finally {
+    scope?.detach(process);
   }
 }
 

@@ -1,15 +1,28 @@
-# 💬 JA DUT Info — IQ4/IQ5 Live SRF Receiver Verification & RF Stability Edition (v2.4.3)
+# 💬 JA DUT Info — DUT Disconnect & Acquisition Scope Recovery Edition (v2.4.4)
 
 > **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.4.3-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.4.4-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.3
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.4
+
+### 1. ⚡ Xử Lý Ngắt Kết Nối & Rút Cáp USB Trong Khi Đọc Thông Số (Unplug During Acquisition)
+- **Khắc phục đóng băng ứng dụng khi rút cáp:** Không còn hiện tượng ứng dụng bị treo đọc lệnh khi người dùng rút cáp USB giữa chừng.
+- **Mô hình `CommandScope` an toàn:** Tự động hủy toàn bộ tiến trình con của phiên đọc khi thiết bị ngắt kết nối, không làm treo ADB server.
+- **Phát hiện ngắt kết nối tức thời:** Tách luồng `unawaited(_loadDut(newDut))` giúp vòng lặp `_checkDevices` phát hiện thiết bị biến mất ngay lập tức và đưa giao diện về trạng thái chờ.
+- **Timeout lệnh chặt chẽ:** Thay thế `Process.run` qua shell bằng cơ chế trực tiếp với timeout 5s cho monitor, 20s cho lệnh chung.
+- **Chống lẫn lộn kết quả cũ:** Cơ chế thế hệ phiên (`_loadGeneration`, `_loopEpoch`) ngăn chặn triệt để dữ liệu cũ ghi đè khi cắm lại thiết bị.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.4.3 & Trước Đó
+
+### [v2.4.3] IQ4/IQ5 Live SRF Receiver Verification & RF Stability
 
 ### 1. 📡 Xác Thực Thu Sóng Thực Tế SRF (Live DUT-Side Packet Reception)
 - **Bãi bỏ PASS ảo:** Không còn suy đoán RF PASS từ phản hồi phát của Golden Panel. Ứng dụng hiện trực tiếp giám sát luồng dữ liệu thu trên DUT.

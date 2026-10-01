@@ -1,9 +1,13 @@
 // lib/modules/utils.dart
 
-import 'dart:io';
 import 'logger_config.dart';
+import 'services/transmitter_process.dart';
+import 'services/command_scope.dart';
 
-Future<String> runCmd(List<String> cmd) async {
+Future<String> runCmd(
+  List<String> cmd, {
+  Duration timeout = const Duration(seconds: 20),
+}) async {
   if (cmd.isEmpty) return '';
   final cmdStr = cmd.join(' ');
   // Log CMD as INFO or FINE. In python, it's DEBUG (which we map to info in console or keep as log output)
@@ -12,7 +16,11 @@ Future<String> runCmd(List<String> cmd) async {
     final executable = cmd[0];
     final arguments = cmd.sublist(1);
 
-    final result = await Process.run(executable, arguments, runInShell: true);
+    final result = await runTransmitterProcess(
+      executable,
+      arguments,
+      timeout: timeout,
+    );
 
     final out = result.stdout.toString().trim();
     final err = result.stderr.toString().trim();
@@ -22,6 +30,8 @@ Future<String> runCmd(List<String> cmd) async {
     }
     logger.info('OUT: $out');
     return out;
+  } on CommandCancelled {
+    rethrow;
   } catch (e) {
     logger.severe('CMD EXCEPTION: $e');
     return '';

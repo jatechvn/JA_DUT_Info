@@ -1,3 +1,22 @@
+# JA DUT Info — Release Notes v2.4.4
+
+Phiên bản **v2.4.4** giải quyết triệt để vấn đề ứng dụng bị treo, đơ hoặc giữ kết quả cũ khi **rút cáp USB đột ngột trong quá trình đọc thông số DUT (Unplug During Acquisition)**, bổ sung cơ chế quản lý tiến trình theo phạm vi **`CommandScope`** và hủy tiến trình con an toàn.
+
+---
+
+## 🌟 Điểm Mới Nổi Bật trên v2.4.4
+
+### 1. ⚡ Khắc Phục Đơ/Treo Khi Rút Cáp USB Trong Khi Đọc
+- **Tách biệt luồng nạp & quét thiết bị:** Vòng lặp `_checkDevices` không còn bị chặn chờ `_loadDut` hoàn tất. Khi rút cáp USB, ứng dụng phát hiện ngay lập tức ở chu kỳ quét kế tiếp và chuyển về trạng thái `Waiting for DUT connection...` mà không bị kẹt.
+- **Quản lý tiến trình theo phạm vi (`CommandScope`):** Toàn bộ tiến trình ADB, Java helper và HTTP callback phát sinh trong phiên đọc được gắn vào `CommandScope`. Khi thiết bị ngắt kết nối, phạm vi được hủy ngay lập tức và toàn bộ tiến trình con được dọn dẹp sạch sẽ mà không ảnh hưởng tới tiến trình ADB server hệ thống.
+- **Giới hạn thời gian chờ lệnh (`runCmd` timeouts):** Loại bỏ việc thực thi lệnh qua shell `cmd.exe`, gọi trực tiếp tiến trình với timeout nghiêm ngặt (5s cho lệnh kiểm tra monitor, 20s cho lệnh dùng chung).
+- **Ngăn ngừa ghi nhận kết quả cũ (Session Generation Guards):** Cơ chế `_loopEpoch` và `_loadGeneration` ngăn chặn các kết quả đọc muộn hoặc kết quả từ thiết bị cũ ghi đè lên phiên kết nối mới khi cắm lại cùng một thiết bị.
+
+### 2. 🧪 Bổ Sung Bộ Kiểm Thử Hồi Quy Ngắt Kết Nối
+- Tích hợp `test/disconnect_read_test.dart` bao gồm các trường hợp rút cáp khi đang đọc thông số, kết nối lại cùng serial, thiết bị offline/unauthorized, và hủy monitor an toàn.
+
+---
+
 # JA DUT Info — Release Notes v2.4.3
 
 Phiên bản **v2.4.3** nâng cấp toàn diện cơ chế đo kiểm và thu nhận sóng không dây **SRF (GE 319.5 MHz, Honeywell 345 MHz, DSC 433 MHz)** trên cả hai dòng thiết bị **IQ4** và **IQ5**, đảm bảo kết quả **RF PASS** phản ánh chính xác việc DUT thực sự thu nhận đủ gói tin không dây với cường độ tín hiệu đạt chuẩn, thay vì chỉ dựa vào tín hiệu phát từ Golden Panel.

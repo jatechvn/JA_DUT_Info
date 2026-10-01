@@ -279,3 +279,37 @@ It still exercises actual stdin/stdout GO/ARMED handshake and TX/RX gating;
 explicit PowerShell bind-error/owned-process timeout tests remain. No production
 stdin framing change retained. Reviewable source/DEX fixes are not committed or
 packaged into existing dist.
+
+# Unplug during acquisition — 2026-10-01
+
+Root cause: _checkDevices awaited the full _loadDut/boot/acquisition before the
+next device scan; shared runCmd used unbounded Process.run through a shell.
+USB removal could leave the monitor stuck reading while it could not detect
+the missing device. Serial-only result guards also allowed old read/HTTP
+results after reconnecting the same serial.
+
+Changed logic.dart to launch acquisition independently of the poll loop, skip
+boot/reload probes while a load is active, and clear UI immediately when the
+current serial disappears from adb devices. Exact device/offline/unauthorized
+parsing replaces substring matching. Session generations guard acquisition,
+station HTTP and RF results; stop/dispose invalidate sessions and late scans.
+RF futures are observed concurrently to avoid unhandled cancellation errors.
+
+New command_scope.dart owns only session-started processes and HTTP cancellation
+callbacks. runCmd now uses the bounded direct process runner; monitor commands
+use5-second timeouts, other shared commands default20 seconds. Disconnect,
+selection change, stop/dispose cancel owned ADB/Java transports without killing
+the global ADB server. srf_receiver.dart and transmitter_process.dart honor
+session ownership. Remote SRF helper still enforces its own30-second receive /
+43-second watchdog; physical disconnect cannot prove remote event teardown.
+Source remains conservative about RF PASS.
+
+Added disconnect_read_test.dart covering removal during a hung acquisition,
+same-serial reconnect rejecting old metadata/RF PASS, unauthorized/offline,
+dispose during pending device scan, owned-process cancellation and command
+timeout/cancellation. Constructor seams allow controlled tests without hardware
+or network writes. Final suite29 tests passed; targeted analyzer and diff check
+clean. Evidence: build/disconnect-regression-final.log. No physical USB removal
+or Windows UI validation, release build, dist replacement or deletion performed.
+Existing artifacts preserved. Next: verify actual unplug/replug while READING
+on a freshly built Windows app, then package safely if requested.

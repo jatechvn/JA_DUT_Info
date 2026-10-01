@@ -4,6 +4,23 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+
+## [2.4.4] - 2026-10-01 — *DUT Disconnect & Acquisition Scope Recovery Edition*
+
+### 🚀 Nâng cấp & Sửa lỗi (Enhancements & Bug Fixes)
+- **Xử Lý Ngắt Kết Nối & Rút Cáp USB Trong Khi Đọc Thông Số (Unplug During Acquisition Handling):**
+  - **Khắc phục treo/đóng băng tiến trình khi rút cáp:** Trước đây vòng lặp `_checkDevices` chờ `_loadDut` hoàn tất mới quét lại, và `runCmd` dùng `Process.run(..., runInShell: true)` không giới hạn thời gian khiến ứng dụng bị treo đọc khi thiết bị bị ngắt kết nối đột ngột giữa chừng.
+  - **Mô hình Quản lý Tiến trình Theo Phạm vi (`CommandScope`):** Triển khai `lib/modules/services/command_scope.dart` quản lý vòng đời toàn bộ tiến trình con (ADB commands, Java helpers, HTTP callbacks) trong phạm vi phiên đọc. Khi DUT bị rút cáp, toàn bộ tiến trình con thuộc phiên đọc được hủy ngay lập tức mà không làm ảnh hưởng đến ADB server toàn cục.
+  - **Tách biệt vòng lặp quét thiết bị & nạp bất đồng bộ:** Tách tiến trình nạp DUT sang luồng chạy độc lập `unawaited(_loadDut(newDut))`, giúp vòng lặp `_checkDevices` tiếp tục quét và phát hiện ngay lập tức khi DUT biến mất khỏi danh sách `adb devices`.
+  - **Xóa trạng thái và hủy tiến trình tức thời (`_clearDut`):** Khi thiết bị hiện tại ngắt kết nối, hàm `_clearDut()` được gọi ngay lập tức: đóng `_readScope`, đặt cờ `_loadGeneration++`, chuyển widget về trạng thái chờ kết nối mà không bị trễ thời gian chờ lệnh.
+  - **Giới hạn thời gian chờ lệnh trực tiếp (Bounded Process Timeouts):** `runCmd` chuyển sang gọi trực tiếp file thực thi (không qua shell `cmd.exe`), áp dụng thời gian chờ chặt chẽ (5s cho lệnh monitor, 20s cho lệnh dùng chung).
+  - **Bộ kiểm thử hồi quy rút cáp (`test/disconnect_read_test.dart`):** Bổ sung 6 kịch bản kiểm thử mô phỏng rút cáp giữa chừng, cắm lại cùng số serial, thiết bị unauthorized/offline, dispose monitor và timeout hủy tiến trình.
+
+### 📦 Phát hành
+- Đồng bộ version 2.4.4+12 trong pubspec.yaml, constants.dart, ABOUT.txt, CHANGELOG.md, RELEASE_NOTES.md, README.md, USERGUIDE.md.
+
+---
+
 ## [2.4.3] - 2026-10-01 — *IQ4/IQ5 Live SRF Receiver Verification & RF Stability Edition*
 
 ### 🚀 Nâng cấp & Tính năng mới (Enhancements & Stability)
