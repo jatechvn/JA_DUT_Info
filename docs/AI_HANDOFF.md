@@ -120,3 +120,162 @@ and confirms invalid input fails without another publication. Fixtures retained
 under build/package-test-9c1efa7c0bf64111991e5aee160a8530.
 No Release rebuild or physical RF verification. Next: build and validate IQ4/IQ5
 on hardware; IQ5 RF reception remains unimplemented and explicitly untested.
+
+# PowerG/SRF audit against guide — 2026-09-30
+
+Read POWERG_SRF_TEST_GUIDE.md and reviewed services, transmitter and monitor.
+Pre-existing dirty powerg_service.dart COM-discovery change preserved.
+Analyzer clean; rf_service/transmitter_process/boot_gate suites 16/16 passed.
+No RF commands, device changes, build, package or production code edits.
+
+Confirmed findings:
+1. SRF verifyDut returns PASS solely from Golden transmit acknowledgement;
+   it never checks DUT receive data after transmission. Transact 50 is used
+   by this implementation as MCU ping; the guide does not establish an SRF
+   receive transaction/contract, so that must be verified from binder/source.
+2. SRF IQ5 detection contains(found) accepts not found and selects ttyHSLX
+   for IQ4. All installed slots are then incorrectly routed to that service.
+3. PowerG accepts any nonzero registration ID even when transmitter failed;
+   no expected-ID comparison or successful-clear acknowledgement required.
+   Shared transmitter IDs further prevent proof of local station origin.
+4. SRF parseSrfSlots treats N/A firmware as card presence and checks matrix
+   positions only for 1 (matrix 1405 without props yields only slot 1).
+5. runCmd has no timeout and discards process exit status; ADB stalls can keep
+   testing active indefinitely, and a failed clear can leave stale data valid.
+COM discovery filter also omits FTDI named ports despite guide support.
+IQ5 PowerG remains MCU-only correctly; RF reception is not implemented there.
+Next: fix false-PASS and exact SRF service detection first; obtain SRF reception
+binder contract before implementing an RF PASS path, then add pipeline tests.
+
+# Original IQ4/IQ5 tool comparison — 2026-09-30
+
+Read original sources (no changes) from:
+IQ4 D:\SW-L10\Lucy_L10_MMI_6.2.0_20260716
+IQ5 D:\SW-L10\L10_MMI_20260720
+IQ4 L10Gen4MMITest.java and IQ5 controller/TestWorker.java both transmit SRF
+via Golden services HSL1/HSL4/HSL2 transaction 18, A49CA0, 0,0,2,20.
+They start DUT MMI APK and poll/pull result files, not infer RF pass from transmit
+acknowledgement. IQ5 Utils names com.qolsys.l10mmi and eachResults.txt.
+IQ5 source comments out PowerG device initialization and PowerGThread dispatch;
+this does not establish whether APK IQ5 does MCU-only or functional RF testing.
+IQ4 source update345SRFCard uses srfservice_ttyHSLX for slot3: HSLX presence is
+not an IQ5 identifier. Earlier audit inference about model selection was too broad;
+contains(found) is still incorrect, but routing must follow actual slot/service.
+IQ4 APK exists under InitUI/L10MMI/L10MMI.apk; no APK found in provided IQ5 tree.
+Next: inspect DUT-side APK/binder reception contract before adding SRF RF PASS.
+
+# Connected IQ4 APK investigation — 2026-09-30
+
+bc4cd33a and 2b69e02 connected. Read-only properties/services checked:
+DUT SRF matrix 0000, no SRF binder service, hwd.end=1, PowerG protocol=8.
+Golden persist.auto.run=1; HSL1/HSL4/HSL2 SRF services present.
+DUT package is com.qolsys.lucyl10mmi at /system/priv-app/L10MMI/L10MMI.apk.
+Pulled APK to build/IQ4-connected-L10MMI.apk; its whole-file hash differs from
+IQ4 reference APK, so both DEX files were examined independently.
+
+DEX method/constant extraction finds same SRF path in both APKs:
+SRFAsyncTask calls binder transaction 50 on srfservice_ttyHSLX and reads int.
+startSrfEvents writes int 80 and invokes transaction 11; next writes int 81
+and invokes transaction 11. cardPresent binds DatagramSocket to UDP 9950.
+Receiver calls DatagramSocket.receive, checks packet length 19 and has a
+PASSED/next branch; Air-ID extraction and RSSI logging also exist. This is
+preliminary bytecode extraction, not a full decompiler/control-flow proof of
+all packet validation. PC transmit transaction 18 alone is not RF evidence.
+
+Evidence retained: build/rf_audit_dex.py, build/rf_audit_dex.txt,
+build/rf_audit_connected.txt and pulled APK. No MMI APK started, RF events
+activated, properties changed, services restarted or Golden transmit triggered.
+No SRF card/service on current DUT: live SRF receive cannot be exercised.
+Next: fully decode receive condition and service event contract, then implement
+bounded DUT-side receive observation with guaranteed event/socket cleanup;
+verify on an IQ4 with SRF card before claiming live functional RF validation.
+
+# IQ4 SRF receive implementation — 2026-09-30
+
+Full resolved DEX inspection confirms the receiver requires exactly 19-byte UDP
+frames on port 9950, Air ID in bytes 3..5, RSSI from unsigned byte 6 / 2 - 134,
+threshold >= -99 dBm, and 5 matching frames. A49CA0 maps to 25390A for GE and
+49CA0A for Honeywell/DSC. HSLX transaction 11 enables/disables events with 80/81;
+transaction 50 is only MCU ping. Main SRF and inner-class instructions match
+between reference and installed APK; SRFCardDetect firmware matching differs.
+See docs/SRF_RECEIVE_CONTRACT.md and tools/srf/decode_contract.py for evidence.
+
+Changed srf_service.dart to remove TX-ACK-only PASS, reject not-found service
+responses, resolve actual native/HSLX service, and gate unsupported services or
+unknown firmware to MCU OK. New srf_receiver.dart runs a bundled DEX helper,
+waits for bind/armed handshake before Golden TX, and requires TX acknowledgement,
+matching RX result, zero exit and successful teardown before PASS. Host/remote
+deadlines fail closed; exclusive socket ownership lasts through teardown.
+Normal timeout closes socket and requests event81. Watchdog attempts cleanup
+then exits if binder hangs; successful teardown cannot be guaranteed when binder
+or device is unavailable, so no PASS is emitted in that situation.
+
+Helper source/tests/build script under tools/srf; JAR in assets/tools/srf added
+to pubspec assets. Updated guide to distinguish MCU ping from actual receive.
+Preserved pre-existing powerg_service.dart changes and all dist/runtime data.
+Helper temp files created by this audit were retained; no broad cleanup occurred.
+
+Verification: Java packet/UDP regression checks passed, helper DEX rebuilt with
+JDK17 and official R8 8.3.37, changed Dart files formatted, focused dart analyze
+clean, 16 Flutter tests across srf_receiver/rf_service/transmitter_process passed
+(including actual Flutter asset loading of the DEX JAR),
+git diff --check passed. Flutter wrapper was interrupted after hanging; direct
+SDK snapshot needed escalated cache/lockfile write permission and passed.
+
+Latest helper pushed to bc4cd33a as /data/local/tmp/ja_srf_audit_20260930_final_v2.jar.
+Android API28 launches it and binds (READY), then fails closed because HSLX
+service is missing. DUT matrix remains 0000. No Golden RF transmission, MMI
+launch, persistent install or fresh Windows Release packaging was performed.
+Next: connect an IQ4 with an installed SRF card/HSLX and validate real receive,
+silence timeout and event81 teardown. Fixed transmitter Air ID cannot identify
+station origin if nearby stations use the same ID; isolate that acceptance run.
+Other SRF service packet contracts and IQ5 APK remain unverified. Existing SRF
+discovery/property commands still use shared unbounded runCmd; outside this
+receiver patch, a stalled ADB property read can delay the overall RF workflow.
+
+# IQ5 live verification and RSSI correction — 2026-10-01
+
+IMPORTANT: prior SRF byte-6 RSSI conclusion above was incorrect. In both IQ4 and
+IQ5 disassembly, v10 is reused while printing packet bytes and holds 14 at the
+RSSI aget-byte instruction. Actual RSSI is unsigned byte14 / 2 - 134. Fixed
+tools/srf/SrfReceiver.java, rebuilt bundled DEX JAR, and added Java regression
+coverage that a strong byte6 cannot rescue a weak byte14. Extended receive
+deadline to 30 seconds per IQ5 APK, watchdog cleanup/exit to 38/43 seconds, host
+completion wait to 47 seconds. Added TX_ACK evidence to receiver raw details.
+
+IQ5 f74b6e05, PCASN QB95 prefix, Android API34, package com.qolsys.l10mmi.
+Pulled APK to build/IQ5-connected-L10MMI.apk. Source program under
+D:\SW-L10\L10_MMI_20260720 triggers qolsys.factory.hwd=1 then waits25 seconds.
+Initial qolsys card properties/services were absent despite persisted hardware
+matrix. Exercised that reference discovery trigger; live properties/service
+appeared: SRF matrix0010, slot3 FW11.2.0-G26, HSLX, PowerG FW53.10/protocol8.
+IQ5 APK independently confirms transaction11 event80/81, UDP9950/19-byte frames,
+same Air ID conversion, RSSI byte14, threshold -99 and count5, with 30s timeout.
+
+First real application service run: PowerG mcuOk, SRF fail/count0. Independent
+30s UDP probe saw343 packets, including25390A, all rejected under wrong byte6.
+After correction, actual Flutter service test returned PowerG mcuOk (FW53.10,
+915MHz), SRF pass with TX_ACK=true and RX_OK ID25390A COUNT5 CLEAN1. Test now
+asserts both expected statuses. No helper process remains; teardown transaction
+accepted, independent event-state readback unavailable. No PowerG RF claim.
+
+Evidence retained in build/iq5-live-rf-result.json, iq5-live-test-fixed.log,
+iq5-srf-probe.log, iq5-rf-disassembly.txt; test/iq5_rf_live_test.dart is opt-in
+via --dart-define=IQ5_RF_SERIAL=f74b6e05. Decoder now supports --package for IQ5.
+Java packet/UDP tests and focused Dart analyzer passed; live acceptance passed.
+Updated docs/SRF_RECEIVE_CONTRACT.md with corrected evidence. No Windows visual
+test, flash, reboot, dist replacement or deletion. Pre-existing PowerG changes,
+.package-stage-* and dist.release-* directories preserved. The current dist
+helper may still contain the old RSSI offset: source/asset fix needs safe rebuild
+and packaging before distributing. Cold boot/discovery timing and IQ4 physical
+RF acceptance remain separate, unverified paths. Fixed Air ID station collision
+limitation remains; physical source cannot be cryptographically attributed.
+
+Final regressions:16 passed, opt-in IQ5 live test skipped in the offline suite;
+separate actual IQ5 acceptance passed1/1. Analyzer and diff check clean.
+PowerShell's Console.ReadLine fixture stalled at READY during offline testing;
+replaced the successful-session mock with a deterministic Dart child process.
+It still exercises actual stdin/stdout GO/ARMED handshake and TX/RX gating;
+explicit PowerShell bind-error/owned-process timeout tests remain. No production
+stdin framing change retained. Reviewable source/DEX fixes are not committed or
+packaged into existing dist.

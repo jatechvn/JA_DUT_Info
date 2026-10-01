@@ -3,6 +3,8 @@
 import 'dart:async';
 import '../logger_config.dart';
 import '../utils.dart';
+import 'srf_receiver.dart';
+import 'transmitter_process.dart';
 
 enum SrfStatus {
   pass, // RF frames received from Golden Panel & MCU OK
@@ -188,7 +190,7 @@ class SrfService {
         serviceName,
         '50',
       ]);
-      final ok = out.contains('00000001');
+      final ok = srfParcelSuccess(out, 1);
       logger.info('[SrfService] Ping $serviceName on $serial: ok=$ok ($out)');
       return ok;
     } catch (e) {
@@ -228,8 +230,7 @@ class SrfService {
     String serviceName,
   ) async {
     try {
-      final out = await runCmd([
-        'adb',
+      final result = await runTransmitterProcess('adb', [
         '-s',
         goldenSerial,
         'shell',
@@ -247,8 +248,9 @@ class SrfService {
         '2',
         'i32',
         '20',
-      ]);
-      final ok = out.contains('00000000');
+      ], timeout: const Duration(seconds: 8));
+      final out = result.stdout.toString();
+      final ok = result.exitCode == 0 && srfParcelSuccess(out, 0);
       logger.info(
         '[SrfService] Golden Panel transmit $serviceName: ok=$ok ($out)',
       );
@@ -392,16 +394,19 @@ class SrfService {
       await Future.delayed(const Duration(seconds: 1));
     }
 
-    // Detect if DUT runs srfservice_ttyHSLX (IQ5)
-    final isIq5 = (await runCmd([
-      'adb',
-      '-s',
-      dutSerial,
-      'shell',
-      'service',
-      'check',
+    // HSLX also exists on IQ4; it is a service capability, not a model ID.
+    final hasHslX = srfServiceFound(
+      await runCmd([
+        'adb',
+        '-s',
+        dutSerial,
+        'shell',
+        'service',
+        'check',
+        'srfservice_ttyHSLX',
+      ]),
       'srfservice_ttyHSLX',
-    ])).contains('found');
+    );
 
     // 3. Read slot properties
     final props = <String, String>{};
@@ -431,7 +436,36 @@ class SrfService {
       ])).trim();
     }
 
-    final slots = parseSrfSlots(matrix, props, isIq5: isIq5);
+    final parsedSlots = parseSrfSlots(matrix, props);
+    final slots = <SrfSlotInfo>[];
+    for (final slot in parsedSlots) {
+      final nativeFound = srfServiceFound(
+        await runCmd([
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'service',
+          'check',
+          slot.serviceName,
+        ]),
+        slot.serviceName,
+      );
+      final useHslX =
+          !nativeFound &&
+          hasHslX &&
+          (slot.slotNumber == 3 || parsedSlots.length == 1);
+      slots.add(
+        SrfSlotInfo(
+          slotNumber: slot.slotNumber,
+          serviceName: useHslX ? 'srfservice_ttyHSLX' : slot.serviceName,
+          goldenServiceName: slot.goldenServiceName,
+          fw: slot.fw,
+          frequency: slot.frequency,
+          brand: slot.brand,
+        ),
+      );
+    }
     if (slots.isEmpty) {
       return SrfResult(
         status: SrfStatus.notInstalled,
@@ -469,32 +503,54 @@ class SrfService {
       );
     }
 
-    // Trigger Golden Panel for each slot using its goldenServiceName
-    bool allTransmitted = true;
+    // Only the HSLX event/packet contract has been verified against this IQ4 APK.
+    // Do not enable unknown service contracts or infer RF PASS from TX ACK.
+    final unsupported = slots.any(
+      (slot) =>
+          slot.serviceName != 'srfservice_ttyHSLX' ||
+          !slot.fw.contains(switch (slot.brand) {
+            'GE' => '-G',
+            'Honeywell' => '-H',
+            'DSC' => '-D',
+            _ => '\u0000',
+          }),
+    );
+    if (unsupported || goldenSerial == dutSerial) {
+      return SrfResult(
+        status: SrfStatus.mcuOk,
+        matrix: matrix,
+        slots: slots,
+        goldenPanelSerial: goldenSerial,
+        message:
+            'MCU OK (Chưa xác minh giao thức thu hoặc Golden không hợp lệ)',
+      );
+    }
+    final details = StringBuffer();
     for (final slot in slots) {
-      final ok = await triggerGoldenTransmit(
-        goldenSerial,
-        slot.goldenServiceName,
+      final received = await receiveSrfOnDut(
+        dutSerial,
+        srfAirId(slot.brand)!,
+        () => triggerGoldenTransmit(goldenSerial, slot.goldenServiceName),
       );
-      if (!ok) allTransmitted = false;
+      details.writeln(received.details);
+      if (!received.passed) {
+        return SrfResult(
+          status: SrfStatus.fail,
+          matrix: matrix,
+          slots: slots,
+          goldenPanelSerial: goldenSerial,
+          message: 'Không xác nhận đủ 5 gói SRF hoặc lỗi phát/dọn dẹp listener',
+          rawDetails: details.toString(),
+        );
+      }
     }
-
-    if (allTransmitted) {
-      return SrfResult(
-        status: SrfStatus.pass,
-        matrix: matrix,
-        slots: slots,
-        goldenPanelSerial: goldenSerial,
-        message: 'RF PASS',
-      );
-    } else {
-      return SrfResult(
-        status: SrfStatus.fail,
-        matrix: matrix,
-        slots: slots,
-        goldenPanelSerial: goldenSerial,
-        message: 'FAIL (Không thể phát tín hiệu từ Golden Panel)',
-      );
-    }
+    return SrfResult(
+      status: SrfStatus.pass,
+      matrix: matrix,
+      slots: slots,
+      goldenPanelSerial: goldenSerial,
+      message: 'RF PASS (5 gói đúng Air ID, RSSI ≥ -99 dBm)',
+      rawDetails: details.toString(),
+    );
   }
 }

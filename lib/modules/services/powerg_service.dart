@@ -319,17 +319,17 @@ class PowerGService {
       final res = await Process.run('powershell', [
         '-NoProfile',
         '-Command',
-        "Get-CimInstance Win32_PnPEntity | Where-Object { \$_.PNPClass -eq 'Ports' -and (\$_.Name -match 'CP210' -or \$_.Name -match 'UART' -or \$_.DeviceID -match 'VID_10C4') } | Select-Object -ExpandProperty Name",
+        "Get-CimInstance Win32_SerialPort | Where-Object Description -match 'CP210|Silicon|UART' | Select-Object -ExpandProperty DeviceID",
       ], runInShell: true);
       final out = res.stdout.toString().trim();
       if (out.isNotEmpty) {
-        final match = RegExp(r'\((COM\d+)\)').firstMatch(out);
-        if (match != null) {
-          final port = match.group(1);
-          logger.info(
-            '[PowerGService] Detected transmitter port: $port ($out)',
-          );
-          return port;
+        final lines = out.split(RegExp(r'[\r\n]+'));
+        for (final l in lines) {
+          final trimmed = l.trim();
+          if (RegExp(r'^COM\d+$', caseSensitive: false).hasMatch(trimmed)) {
+            logger.info('[PowerGService] Detected transmitter port: $trimmed');
+            return trimmed;
+          }
         }
       }
     } catch (e) {

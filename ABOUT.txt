@@ -2,7 +2,7 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.4.2 (IQ4 868MHz / 915MHz Multi-Protocol RF & Universal Device Recognition Edition)
+Version      : v2.4.3 (IQ4/IQ5 Live SRF Receiver Verification & RF Stability Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/

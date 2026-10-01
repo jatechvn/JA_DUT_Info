@@ -1,3 +1,26 @@
+# JA DUT Info — Release Notes v2.4.3
+
+Phiên bản **v2.4.3** nâng cấp toàn diện cơ chế đo kiểm và thu nhận sóng không dây **SRF (GE 319.5 MHz, Honeywell 345 MHz, DSC 433 MHz)** trên cả hai dòng thiết bị **IQ4** và **IQ5**, đảm bảo kết quả **RF PASS** phản ánh chính xác việc DUT thực sự thu nhận đủ gói tin không dây với cường độ tín hiệu đạt chuẩn, thay vì chỉ dựa vào tín hiệu phát từ Golden Panel.
+
+---
+
+## 🌟 Điểm Mới Nổi Bật trên v2.4.3
+
+### 1. 📡 Xác Thực Thu Sóng Thực Tế SRF (Live DUT-Side Packet Reception)
+- **Bãi bỏ PASS ảo:** Không còn suy đoán RF PASS từ phản hồi phát của Golden Panel. Ứng dụng hiện trực tiếp giám sát luồng dữ liệu thu trên DUT.
+- **Helper Nhúng Java DEX (`SrfReceiver.jar`):** Triển khai receiver chuyên dụng chạy trực tiếp trong không gian người dùng của thiết bị DUT qua `app_process`.
+- **Giải mã khung truyền UDP 9950 (19-byte):** Lắng nghe cổng UDP 9950 khi kích hoạt transaction 11 (event 80) trên dịch vụ `srfservice_ttyHSLX`, trích xuất chuẩn xác Air ID (`25390A` cho GE 319.5MHz; `49CA0A` cho Honeywell/DSC).
+- **Đo lường RSSI chuẩn xác theo Disassembly:** Hiệu chuẩn chuẩn xác vị trí byte 14 trong khung truyền theo công thức `unsigned(byte14) / 2 - 134 dBm`, yêu cầu cường độ tín hiệu >= -99 dBm và nhận đủ tối thiểu 5 gói tin.
+- **Bảo vệ hệ thống & dọn dẹp an toàn:** Tự động gửi event 81 để đóng listener ngay khi hoàn tất, đóng DatagramSocket và kích hoạt cơ chế watchdog fail-closed chống kẹt cổng hoặc rò rỉ socket trên DUT.
+
+### 2. 🔌 Tối Ưu Hóa Dò Cổng Bộ Phát Sóng PowerG
+- Sử dụng truy vấn WMI `Win32_SerialPort` kết hợp bộ lọc driver phần cứng `CP210|Silicon|UART`, đảm bảo trích xuất chính xác tên cổng COM (`COMx`) của bộ nạp/phát sóng PowerG.
+
+### 3. 🧪 Bổ Sung Bộ Kiểm Thử Tự Động & Hồi Quy Chặt Chẽ
+- Thêm kiểm thử mô phỏng tiến trình receiver và bộ kiểm thử trực tiếp trên thiết bị IQ5 thực tế (`test/iq5_rf_live_test.dart`), đảm bảo độ ổn định cao nhất trong dây chuyền sản xuất.
+
+---
+
 # JA DUT Info — Release Notes v2.4.2
 
 Phiên bản **v2.4.2** nâng cấp toàn diện cơ chế nhận diện phần cứng và đo kiểm sóng vô tuyến RF cho dòng thiết bị **IQ4 (cả biến thể 868 MHz EU và 915 MHz NA/LATAM/ANZ)**, khắc phục triệt để lỗi thiết bị bị nhận diện thành `DUT` / `N/A` và tần số PowerG bị hiển thị `N/A` khi cắm đồng thời 2 cục phát.

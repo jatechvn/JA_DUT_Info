@@ -1,15 +1,34 @@
-# 💬 JA DUT Info — IQ4 868MHz / 915MHz Multi-Protocol RF & Universal Device Recognition Edition (v2.4.2)
+# 💬 JA DUT Info — IQ4/IQ5 Live SRF Receiver Verification & RF Stability Edition (v2.4.3)
 
 > **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.4.2-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.4.3-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.2
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.3
+
+### 1. 📡 Xác Thực Thu Sóng Thực Tế SRF (Live DUT-Side Packet Reception)
+- **Bãi bỏ PASS ảo:** Không còn suy đoán RF PASS từ phản hồi phát của Golden Panel. Ứng dụng hiện trực tiếp giám sát luồng dữ liệu thu trên DUT.
+- **Helper Nhúng Java DEX (`SrfReceiver.jar`):** Triển khai receiver chuyên dụng chạy trực tiếp trong không gian người dùng của thiết bị DUT qua `app_process`.
+- **Giải mã khung truyền UDP 9950 (19-byte):** Lắng nghe cổng UDP 9950 khi kích hoạt transaction 11 (event 80) trên dịch vụ `srfservice_ttyHSLX`, trích xuất chuẩn xác Air ID (`25390A` cho GE 319.5MHz; `49CA0A` cho Honeywell/DSC).
+- **Đo lường RSSI chuẩn xác theo Disassembly:** Hiệu chuẩn chuẩn xác vị trí byte 14 trong khung truyền theo công thức `unsigned(byte14) / 2 - 134 dBm`, yêu cầu cường độ tín hiệu >= -99 dBm và nhận đủ tối thiểu 5 gói tin.
+- **Bảo vệ hệ thống & dọn dẹp an toàn:** Tự động gửi event 81 để đóng listener ngay khi hoàn tất, đóng DatagramSocket và kích hoạt cơ chế watchdog fail-closed chống kẹt cổng hoặc rò rỉ socket trên DUT.
+
+### 2. 🔌 Tối Ưu Hóa Dò Cổng Bộ Phát Sóng PowerG
+- Sử dụng truy vấn WMI `Win32_SerialPort` kết hợp bộ lọc driver phần cứng `CP210|Silicon|UART`, đảm bảo trích xuất chính xác tên cổng COM (`COMx`) của bộ nạp/phát sóng PowerG.
+
+### 3. 🧪 Bổ Sung Bộ Kiểm Thử Tự Động & Hồi Quy Chặt Chẽ
+- Thêm kiểm thử mô phỏng tiến trình receiver và bộ kiểm thử trực tiếp trên thiết bị IQ5 thực tế (`test/iq5_rf_live_test.dart`), đảm bảo độ ổn định cao nhất trong dây chuyền sản xuất.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.4.2 & Trước Đó
+
+### [v2.4.2] IQ4 868MHz / 915MHz Multi-Protocol RF & Universal Device Recognition
 
 ### 1. 📡 Khắc Phục Toàn Diện Nhận Diện Sóng PowerG & Tần Số 868 MHz trên IQ4
 - **Chuỗi giải mã giao thức đa tầng (`_resolveProtocol`):** Mở rộng quét thuộc tính `qolsys.slot_one.protocol` (đặc trưng trên IQ4), `qolsys.powergv4.protocol`, `persist.qolsys.powergv4.protocol`, `qolsys.powerg.protocol`, `persist.qolsys.powerg.protocol`, ma trận thẻ `qolsys.card.matrix` (800M/900M), và `testeepapi r syspn` (IQP4004/IQP4008/IQP4009). Khắc phục triệt để lỗi báo `N/A` tần số hoặc `N/A - Không có card`.

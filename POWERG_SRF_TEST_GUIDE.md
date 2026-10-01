@@ -197,7 +197,7 @@ Tích hợp khả năng tự động kiểm tra sóng PowerG (868/915MHz) và SR
 2. **`SrfVerifyService` ([lib/modules/services/srf_service.dart](file:///D:/OS-Software/OneDrive/OpenClaw_Workspace/JA_PROJECT/PROJECT_DART/JA_DUT_Info/lib/modules/)):**
    - Đọc SKU DUT: Nếu SKU không có SRF (như SKU 345) $\rightarrow$ báo `N/A`, không báo lỗi giả.
    - Tự động nhận diện Golden Panel qua `persist.auto.run == 1`.
-   - Ra lệnh cho Golden Panel phát gói tin SRF (Transact 18) và kiểm tra DUT (Transact 50).
+   - Transact 50 chỉ ping MCU, không chứng minh thu RF. Nhánh IQ4 HSLX đã giải mã dùng UDP 9950, transaction 11 với event 80/81; yêu cầu 5 gói đúng Air ID và RSSI ≥ −99 dBm sau khi kích hoạt thu và Golden phát (Transact 18). Chi tiết và giới hạn kiểm chứng: [SRF_RECEIVE_CONTRACT.md](docs/SRF_RECEIVE_CONTRACT.md).
 3. **Giao diện người dùng (UI):**
    - Thêm 2 thẻ hiển thị trạng thái: `PowerG: PASS (868M - 83.03)` và `SRF: N/A`.
    - Hộp thoại kính mờ `RfDiagnosticsDialog` kèm nút **"Test RF Ngay" (1-Click Diagnostics)** giúp kỹ thuật viên kiểm tra sóng bất kỳ lúc nào chỉ với một cú nhấp chuột.

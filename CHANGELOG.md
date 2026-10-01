@@ -4,6 +4,26 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 
 ---
 
+## [2.4.3] - 2026-10-01 — *IQ4/IQ5 Live SRF Receiver Verification & RF Stability Edition*
+
+### 🚀 Nâng cấp & Tính năng mới (Enhancements & Stability)
+- **Xác Thực Thu Sóng Thực Tế SRF (Live DUT-Side SRF Packet Reception Verification):**
+  - **Khắc phục kết luận PASS ảo:** Bãi bỏ cơ chế cũ chỉ dựa vào tín hiệu phát ACK từ Golden Panel mà không kiểm tra DUT có thực sự nhận được sóng hay không.
+  - **Dịch vụ Helper Nhúng Java DEX (`SrfReceiver.jar`):** Tích hợp công cụ receiver chuyên dụng (`assets/tools/srf/SrfReceiver.jar`) chạy trực tiếp trên môi trường Android của DUT qua `app_process`.
+  - **Giải mã chuẩn giao thức UDP 9950 & 19-byte Frame:** Kích hoạt transaction 11 (event 80/81) trên `srfservice_ttyHSLX`, lắng nghe socket UDP 9950, trích xuất chính xác Air ID (GE: `25390A`, Honeywell/DSC: `49CA0A`).
+  - **Hiệu chuẩn đo lường RSSI chuẩn xác:** Xác định chính xác vị trí byte 14 trong frame (thay thế giả định cũ byte 6) với công thức `unsigned(byte14) / 2 - 134 dBm`, yêu cầu cường độ tín hiệu tối thiểu >= -99 dBm và nhận đủ 5 frame liên tục.
+  - **Cơ chế thu dọn tài nguyên an toàn (Guaranteed Teardown):** Tự động gửi event 81 để đóng listener, đóng DatagramSocket và có watchdog fail-closed bảo vệ hệ thống không bị rò rỉ socket/binder.
+- **Tối Ưu Hóa Dò Cổng Truyền Sóng PowerG (Transmitter Port Detection):**
+  - Sử dụng truy vấn WMI `Win32_SerialPort` lọc theo bộ driver `CP210|Silicon|UART`, đảm bảo nhận diện chính xác cổng COM của thiết bị nạp/phát sóng mà không bị phụ thuộc vào định dạng chuỗi tên thiết bị PnP.
+- **Bổ Sung Bộ Kiểm Thử Hồi Quy Toàn Diện (Comprehensive Regression Tests):**
+  - Bổ sung `test/srf_receiver_test.dart` và `test/iq5_rf_live_test.dart` kiểm tra tính toàn vẹn của chuỗi bắt tay, mã hóa/giải mã frame UDP và cơ chế dọn dẹp tiến trình receiver.
+
+### 📦 Phát hành
+- Đồng bộ version 2.4.3+11 trong pubspec.yaml, constants.dart, ABOUT.txt, CHANGELOG.md, RELEASE_NOTES.md, README.md, USERGUIDE.md.
+
+
+---
+
 ## [2.4.2] - 2026-09-29 — *IQ4 868MHz / 915MHz Multi-Protocol RF & Universal Device Recognition Edition*
 
 ### 🚀 Enhancements & Bug Fixes
