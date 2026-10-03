@@ -93,7 +93,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   // Set compact size to 440 x 335 for bubble, station pill, cards, and flowing wires
   Win32Window::Size size(440, 335);
-  if (!window.Create(L"ja_dut_info", origin, size)) {
+  if (!window.Create(L"JA_DUT_Info", origin, size)) {
     ::ReleaseMutex(hMutex);
     ::CloseHandle(hMutex);
     return EXIT_FAILURE;

@@ -161,7 +161,7 @@ bool Win32Window::Create(const std::wstring& title,
 
   HWND window = CreateWindowEx(
       WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
-      window_class, IsWindows11OrGreater() ? title.c_str() : L"", WS_POPUP,
+      window_class, title.c_str(), WS_POPUP,
       x, y,
       Scale(size.width, scale_factor), Scale(size.height, scale_factor),
       nullptr, nullptr, GetModuleHandle(nullptr), this);

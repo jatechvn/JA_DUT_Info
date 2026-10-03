@@ -10,6 +10,7 @@ import '../constants.dart';
 import '../logic.dart';
 import '../services/autostart_service.dart';
 import '../services/ota_update_service.dart';
+import '../services/power_coordinator.dart';
 import 'styles.dart';
 import 'bubble_hover_region.dart';
 import 'glass_update_dialog.dart';
@@ -20,6 +21,19 @@ Rect? measuredHeaderRect(GlobalKey key, RenderBox root) {
   final box = key.currentContext?.findRenderObject();
   if (box is! RenderBox || !box.hasSize) return null;
   return box.localToGlobal(Offset.zero, ancestor: root) & box.size;
+}
+
+class _DecorationMode extends InheritedWidget {
+  const _DecorationMode({required this.enabled, required super.child});
+  final bool enabled;
+
+  static bool enabledOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_DecorationMode>()?.enabled ??
+      TickerMode.valuesOf(context).enabled;
+
+  @override
+  bool updateShouldNotify(_DecorationMode oldWidget) =>
+      enabled != oldWidget.enabled;
 }
 
 class MainWindow extends StatefulWidget {
@@ -35,6 +49,16 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   late final AnimationController _sproutAnimController;
   late final AnimationController _pulseAnimController;
   late final AnimationController _stationAnimController;
+
+  PowerCoordinator? _powerCoordinator;
+  bool _pulseWasForward = true;
+  bool _stationWasForward = true;
+  bool _effectsAllowed = false;
+  bool? _animationsEnabled;
+  int _animationEpoch = 0;
+  bool _applyingStaticLayout = false;
+  bool _lastDeviceConnected = false;
+  bool _deviceTransitionActive = false;
 
   bool _isExpanded = true;
   bool _bubbleHovered = false;
@@ -90,6 +114,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   }
 
   void _copyToClipboard(String field, String value) {
+    _powerCoordinator?.recordUserActivity();
     if (value != 'N/A' && value.isNotEmpty && !value.contains('Đang')) {
       Clipboard.setData(ClipboardData(text: value));
       final monitor = Provider.of<AdbMonitor>(context, listen: false);
@@ -173,6 +198,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   }
 
   void _startDrag() {
+    _powerCoordinator?.recordUserActivity();
     if (Platform.isWindows) {
       _windowChannel.invokeMethod('startDrag');
     }
@@ -256,6 +282,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   }
 
   void _toggleExpand() {
+    _powerCoordinator?.recordUserActivity();
     setState(() {
       _isExpanded = !_isExpanded;
       if (_isExpanded) {
@@ -337,6 +364,7 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   }
 
   void _showContextMenu(BuildContext context, TapDownDetails details) {
+    _powerCoordinator?.recordUserActivity();
     setState(() => _isMenuOpen = true);
     final theme = Provider.of<ThemeProvider>(context, listen: false);
     final monitor = Provider.of<AdbMonitor>(context, listen: false);
@@ -719,8 +747,10 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 360),
     );
     _sproutAnimController.addStatusListener((status) {
-      if (status == AnimationStatus.completed ||
-          status == AnimationStatus.dismissed) {
+      if (!_applyingStaticLayout &&
+          (status == AnimationStatus.completed ||
+              status == AnimationStatus.dismissed)) {
+        _deviceTransitionActive = false;
         setState(() {});
       }
     });
@@ -728,12 +758,12 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     _pulseAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
+    );
 
     _stationAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
-    )..repeat(reverse: true);
+    );
 
     // Listen to MethodChannel messages from C++ Win32 runner
     _windowChannel.setMethodCallHandler((call) async {
@@ -761,6 +791,96 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final power = Provider.of<PowerCoordinator>(context);
+    if (_powerCoordinator != power) {
+      _powerCoordinator?.removeListener(_onPowerStateChanged);
+      _powerCoordinator = power;
+      _powerCoordinator?.addListener(_onPowerStateChanged);
+      _syncAnimationState(power.isUiAnimationEnabled);
+    }
+  }
+
+  void _onPowerStateChanged() {
+    if (!mounted || _powerCoordinator == null) return;
+    _syncAnimationState(_powerCoordinator!.isUiAnimationEnabled);
+  }
+
+  void _syncAnimationState(bool enabled) {
+    enabled = enabled && _effectsAllowed;
+    if (_animationsEnabled == enabled) return;
+    _animationsEnabled = enabled;
+    final epoch = ++_animationEpoch;
+    if (enabled) {
+      if (!_pulseAnimController.isAnimating) {
+        if (_pulseWasForward) {
+          _pulseAnimController
+              .forward(from: _pulseAnimController.value)
+              .whenCompleteOrCancel(() {
+                if (epoch == _animationEpoch &&
+                    _animationsEnabled == true &&
+                    _powerCoordinator?.isUiAnimationEnabled == true &&
+                    mounted) {
+                  _pulseAnimController.repeat(reverse: true);
+                }
+              });
+        } else {
+          _pulseAnimController
+              .reverse(from: _pulseAnimController.value)
+              .whenCompleteOrCancel(() {
+                if (epoch == _animationEpoch &&
+                    _animationsEnabled == true &&
+                    _powerCoordinator?.isUiAnimationEnabled == true &&
+                    mounted) {
+                  _pulseAnimController.repeat(reverse: true);
+                }
+              });
+        }
+      }
+      if (!_stationAnimController.isAnimating) {
+        if (_stationWasForward) {
+          _stationAnimController
+              .forward(from: _stationAnimController.value)
+              .whenCompleteOrCancel(() {
+                if (epoch == _animationEpoch &&
+                    _animationsEnabled == true &&
+                    _powerCoordinator?.isUiAnimationEnabled == true &&
+                    mounted) {
+                  _stationAnimController.repeat(reverse: true);
+                }
+              });
+        } else {
+          _stationAnimController
+              .reverse(from: _stationAnimController.value)
+              .whenCompleteOrCancel(() {
+                if (epoch == _animationEpoch &&
+                    _animationsEnabled == true &&
+                    _powerCoordinator?.isUiAnimationEnabled == true &&
+                    mounted) {
+                  _stationAnimController.repeat(reverse: true);
+                }
+              });
+        }
+      }
+    } else {
+      if (_sproutAnimController.isAnimating && !_deviceTransitionActive) {
+        _sproutAnimController.stop(canceled: false);
+      }
+      if (_pulseAnimController.isAnimating) {
+        _pulseWasForward =
+            (_pulseAnimController.status == AnimationStatus.forward);
+        _pulseAnimController.stop(canceled: false);
+      }
+      if (_stationAnimController.isAnimating) {
+        _stationWasForward =
+            (_stationAnimController.status == AnimationStatus.forward);
+        _stationAnimController.stop(canceled: false);
+      }
+    }
+  }
+
   void _checkAutostartOnStartup() {
     AutostartService.isAutostartEnabled().then((enabled) {
       if (mounted) setState(() => _autostartEnabled = enabled);
@@ -769,6 +889,8 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _powerCoordinator?.removeListener(_onPowerStateChanged);
+    _powerCoordinator = null;
     _sproutAnimController.dispose();
     _pulseAnimController.dispose();
     _stationAnimController.dispose();
@@ -781,14 +903,55 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     final monitor = Provider.of<AdbMonitor>(context);
     final ota = Provider.of<OtaUpdateService>(context);
 
+    // Device transitions are one-shot presentation events, independent of
+    // whether decorative effects are enabled in the steady state.
+    if (_lastDeviceConnected != monitor.deviceConnected) {
+      _lastDeviceConnected = monitor.deviceConnected;
+      _deviceTransitionActive =
+          _isExpanded && (_powerCoordinator?.isVisible ?? false);
+      if (_deviceTransitionActive) {
+        if (monitor.deviceConnected) {
+          _sproutAnimController.forward();
+        } else {
+          _sproutAnimController.reverse();
+        }
+      }
+    }
+    if (!_isExpanded || _powerCoordinator?.isVisible != true) {
+      _deviceTransitionActive = false;
+    }
+
+    final isInteracting = _bubbleHovered || _hoveredKey != null;
+    final isDockedCurrentSide = _isRight ? _isDockedRight : _isDockedLeft;
+    _effectsAllowed =
+        monitor.deviceConnected &&
+        _isExpanded &&
+        (!isDockedCurrentSide || isInteracting);
+    final effectsEnabled =
+        _effectsAllowed && (_powerCoordinator?.isUiAnimationEnabled ?? false);
+    _syncAnimationState(effectsEnabled);
+
+    // Apply final card layout instead of leaving a muted transition halfway.
+    if (!_effectsAllowed && !_deviceTransitionActive) {
+      final target = monitor.deviceConnected && _isExpanded ? 1.0 : 0.0;
+      if (_sproutAnimController.isAnimating ||
+          _sproutAnimController.value != target) {
+        _applyingStaticLayout = true;
+        _sproutAnimController.value = target;
+        _applyingStaticLayout = false;
+      }
+    }
+
     // Auto-trigger sprout / retract
-    if (monitor.deviceConnected &&
+    if (effectsEnabled &&
+        monitor.deviceConnected &&
         !_sproutAnimController.isCompleted &&
         !_sproutAnimController.isAnimating) {
       if (_isExpanded) {
         _sproutAnimController.forward();
       }
-    } else if (!monitor.deviceConnected &&
+    } else if (effectsEnabled &&
+        !monitor.deviceConnected &&
         _sproutAnimController.value > 0 &&
         !_sproutAnimController.isAnimating) {
       _sproutAnimController.reverse();
@@ -871,10 +1034,6 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     // 3. When hovered: the sphere springs out into full view and cards slide
     //    to provide ample room for grabbing/dragging.
     // -----------------------------------------------------------------------
-    final bool isInteracting = _bubbleHovered || _hoveredKey != null;
-
-    final bool isDockedCurrentSide = _isRight ? _isDockedRight : _isDockedLeft;
-
     // -----------------------------------------------------------------------
     // CORNER DYNAMICS (Bám sát Taskbar khi ở dưới & Bám sát Mép trên khi ở trên):
     // - Khi ở GÓC DƯỚI (_isBottom == true):
@@ -992,539 +1151,592 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       toastHitRect: toastHitRect,
     );
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SizedBox(
-        width: 440,
-        height: 335,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // 1. Dynamic Bézier Leader Wires with Dedicated RepaintBoundary
-            Positioned.fill(
-              child: RepaintBoundary(
-                child: AnimatedBuilder(
-                  animation: _sproutAnimController,
-                  builder: (context, _) {
-                    return CustomPaint(
-                      painter: _WirePainter(
-                        bubbleAnchor: bubbleAnchor,
-                        cardTargetX: cardWireTargetX,
-                        cardCenterYs: cardCenterYs,
-                        growthProgress: _sproutAnimController.value,
-                        hoveredIndex: _hoveredKey != null
-                            ? keys.indexOf(_hoveredKey!)
-                            : null,
-                        isDark: theme.isDark,
-                        isRight: _isRight,
-                        isBottom: _isBottom,
-                        verticalWireX: verticalWireX,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-            // 2. Mini Floating Capsule Header for Quick DUT Switch (When >1 DUT connected)
-            if (hasMultiDut)
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                left: dutCapsuleLeft,
-                top: dutHeaderTop,
-                width: dutCapsuleWidth,
-                height: dutCapsuleHeight,
-                child: RepaintBoundary(
-                  child: AnimatedBuilder(
-                    animation: _sproutAnimController,
-                    builder: (context, child) {
-                      final animVal = _sproutAnimController.value;
-                      final curvedVal = Curves.easeOutCubic.transform(animVal);
-                      if (curvedVal <= 0.01) {
-                        return const SizedBox.shrink();
-                      }
-                      final slideOffsetX = _isRight
-                          ? (35.0 * (1.0 - curvedVal))
-                          : (-35.0 * (1.0 - curvedVal));
-                      return Opacity(
-                        opacity: curvedVal,
-                        child: Transform.translate(
-                          offset: Offset(slideOffsetX, 0),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: DutSwitchHeader(
-                      key: _dutHeaderKey,
-                      currentDut: monitor.currentDut,
-                      allDuts: monitor.allDuts,
-                      isDark: theme.isDark,
-                      onSwitchDut: (nextDut) {
-                        monitor.selectDut(nextDut);
-                        _triggerToast('Đã chuyển sang DUT: $nextDut');
+    return _DecorationMode(
+      enabled: effectsEnabled,
+      child: TickerMode(
+        enabled:
+            (_deviceTransitionActive ||
+                (monitor.deviceConnected && _isExpanded)) &&
+            (_powerCoordinator?.isVisible ?? false),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SizedBox(
+            width: 440,
+            height: 335,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // 1. Dynamic Bézier Leader Wires with Dedicated RepaintBoundary
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: _sproutAnimController,
+                      builder: (context, _) {
+                        return CustomPaint(
+                          painter: _WirePainter(
+                            bubbleAnchor: bubbleAnchor,
+                            cardTargetX: cardWireTargetX,
+                            cardCenterYs: cardCenterYs,
+                            growthProgress: _sproutAnimController.value,
+                            hoveredIndex: _hoveredKey != null
+                                ? keys.indexOf(_hoveredKey!)
+                                : null,
+                            isDark: theme.isDark,
+                            isRight: _isRight,
+                            isBottom: _isBottom,
+                            verticalWireX: verticalWireX,
+                          ),
+                        );
                       },
                     ),
                   ),
                 ),
-              ),
 
-            // 3. Vertical Stacking Frosted Glass Cards (Smooth Animation & Snug Edge Alignment)
-            ...keys.asMap().entries.map((entry) {
-              final idx = entry.key;
-              final key = entry.value;
-              String val;
-              if (key == 'RF') {
-                if (monitor.isRfTesting) {
-                  val = 'Đang kiểm tra sóng RF...';
-                } else if (monitor.powerGResult != null) {
-                  final pg = monitor.powerGResult!;
-                  final srf = monitor.srfResult;
-                  if (pg.isPass && (srf?.isPass ?? false)) {
-                    val = 'PG: PASS (${pg.frequency}) • SRF: PASS';
-                  } else if (pg.isPass) {
-                    val = pg.displaySummary;
-                  } else if (srf?.isPass ?? false) {
-                    val = srf!.displaySummary;
-                  } else if (pg.isInstalled) {
-                    val = pg.displaySummary;
-                  } else if (srf?.isInstalled ?? false) {
-                    val = srf!.displaySummary;
-                  } else {
-                    val = 'N/A - Không có card';
-                  }
-                } else {
-                  val = monitor.info['PowerG'] ?? 'N/A';
-                }
-              } else {
-                val = monitor.info[key] ?? 'N/A';
-              }
-              final isWarning =
-                  key == 'LCMPN' && val.contains('không được chạy lại');
-
-              return AnimatedPositioned(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                left: targetCardsLeft,
-                top: startY + idx * (cardHeight + cardGap),
-                width: cardWidth,
-                height: cardHeight,
-                child: RepaintBoundary(
-                  child: AnimatedBuilder(
-                    animation: _sproutAnimController,
-                    builder: (context, child) {
-                      final itemDelay = idx * 0.07;
-                      final animVal =
-                          ((_sproutAnimController.value - itemDelay) /
-                                  (1.0 - itemDelay))
-                              .clamp(0.0, 1.0);
-                      final curvedVal = Curves.easeOutCubic.transform(animVal);
-
-                      if (curvedVal <= 0.01) {
-                        return const SizedBox.shrink();
-                      }
-
-                      // Slide direction adapts to corner orientation
-                      final slideOffsetX = _isRight
-                          ? (35.0 * (1.0 - curvedVal))
-                          : (-35.0 * (1.0 - curvedVal));
-
-                      return Opacity(
-                        opacity: curvedVal,
-                        child: Transform.translate(
-                          offset: Offset(slideOffsetX, 0),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: MouseRegion(
-                      onEnter: (_) => setState(() => _hoveredKey = key),
-                      onExit: (_) => setState(() => _hoveredKey = null),
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () {
-                          if (key == 'RF') {
-                            if (monitor.currentDut.isEmpty) {
-                              _triggerToast(
-                                'Không có thiết bị DUT để kiểm tra',
-                              );
-                              return;
-                            }
-                            if (monitor.isRfTesting) {
-                              _triggerToast(
-                                'Đang trong quá trình kiểm tra sóng RF...',
-                              );
-                              return;
-                            }
-                            monitor.retestRf();
-                            _triggerToast('Đang kiểm tra lại sóng RF...');
-                          } else {
-                            _copyToClipboard(key, val);
+                // 2. Mini Floating Capsule Header for Quick DUT Switch (When >1 DUT connected)
+                if (hasMultiDut)
+                  AnimatedPositioned(
+                    duration: effectsEnabled
+                        ? const Duration(milliseconds: 260)
+                        : Duration.zero,
+                    curve: Curves.easeOutCubic,
+                    left: dutCapsuleLeft,
+                    top: dutHeaderTop,
+                    width: dutCapsuleWidth,
+                    height: dutCapsuleHeight,
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: _sproutAnimController,
+                        builder: (context, child) {
+                          final animVal = _sproutAnimController.value;
+                          final curvedVal = Curves.easeOutCubic.transform(
+                            animVal,
+                          );
+                          if (curvedVal <= 0.01) {
+                            return const SizedBox.shrink();
                           }
+                          final slideOffsetX = _isRight
+                              ? (35.0 * (1.0 - curvedVal))
+                              : (-35.0 * (1.0 - curvedVal));
+                          return Opacity(
+                            opacity: curvedVal,
+                            child: Transform.translate(
+                              offset: Offset(slideOffsetX, 0),
+                              child: child,
+                            ),
+                          );
                         },
-                        child: _InfoCard(
-                          fieldKey: key,
-                          value: val,
+                        child: DutSwitchHeader(
+                          key: _dutHeaderKey,
+                          currentDut: monitor.currentDut,
+                          allDuts: monitor.allDuts,
                           isDark: theme.isDark,
-                          isWarning: isWarning,
-                          modelName: modelName,
-                          isRfTesting: key == 'RF' && monitor.isRfTesting,
-                          onDiagnosticsTap: key == 'RF'
-                              ? _openRfDiagnosticsDialog
-                              : null,
+                          onSwitchDut: (nextDut) {
+                            monitor.selectDut(nextDut);
+                            _triggerToast('Đã chuyển sang DUT: $nextDut');
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // 3. Vertical Stacking Frosted Glass Cards (Smooth Animation & Snug Edge Alignment)
+                ...keys.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final key = entry.value;
+                  String val;
+                  if (key == 'RF') {
+                    if (monitor.isRfTesting) {
+                      val = 'Đang kiểm tra sóng RF...';
+                    } else if (monitor.powerGResult != null) {
+                      final pg = monitor.powerGResult!;
+                      final srf = monitor.srfResult;
+                      if (pg.isPass && (srf?.isPass ?? false)) {
+                        val = 'PG: PASS (${pg.frequency}) • SRF: PASS';
+                      } else if (pg.isPass) {
+                        val = pg.displaySummary;
+                      } else if (srf?.isPass ?? false) {
+                        val = srf!.displaySummary;
+                      } else if (pg.isInstalled) {
+                        val = pg.displaySummary;
+                      } else if (srf?.isInstalled ?? false) {
+                        val = srf!.displaySummary;
+                      } else {
+                        val = 'N/A - Không có card';
+                      }
+                    } else {
+                      val = monitor.info['PowerG'] ?? 'N/A';
+                    }
+                  } else {
+                    val = monitor.info[key] ?? 'N/A';
+                  }
+                  final isWarning =
+                      key == 'LCMPN' && val.contains('không được chạy lại');
+
+                  return AnimatedPositioned(
+                    duration: effectsEnabled
+                        ? const Duration(milliseconds: 260)
+                        : Duration.zero,
+                    curve: Curves.easeOutCubic,
+                    left: targetCardsLeft,
+                    top: startY + idx * (cardHeight + cardGap),
+                    width: cardWidth,
+                    height: cardHeight,
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: _sproutAnimController,
+                        builder: (context, child) {
+                          final itemDelay = idx * 0.07;
+                          final animVal =
+                              ((_sproutAnimController.value - itemDelay) /
+                                      (1.0 - itemDelay))
+                                  .clamp(0.0, 1.0);
+                          final curvedVal = Curves.easeOutCubic.transform(
+                            animVal,
+                          );
+
+                          if (curvedVal <= 0.01) {
+                            return const SizedBox.shrink();
+                          }
+
+                          // Slide direction adapts to corner orientation
+                          final slideOffsetX = _isRight
+                              ? (35.0 * (1.0 - curvedVal))
+                              : (-35.0 * (1.0 - curvedVal));
+
+                          return Opacity(
+                            opacity: curvedVal,
+                            child: Transform.translate(
+                              offset: Offset(slideOffsetX, 0),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: MouseRegion(
+                          onEnter: (_) => setState(() => _hoveredKey = key),
+                          onExit: (_) => setState(() => _hoveredKey = null),
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () {
+                              if (key == 'RF') {
+                                if (monitor.currentDut.isEmpty) {
+                                  _triggerToast(
+                                    'Không có thiết bị DUT để kiểm tra',
+                                  );
+                                  return;
+                                }
+                                if (monitor.isRfTesting) {
+                                  _triggerToast(
+                                    'Đang trong quá trình kiểm tra sóng RF...',
+                                  );
+                                  return;
+                                }
+                                monitor.retestRf();
+                                _triggerToast('Đang kiểm tra lại sóng RF...');
+                              } else {
+                                _copyToClipboard(key, val);
+                              }
+                            },
+                            child: _InfoCard(
+                              fieldKey: key,
+                              value: val,
+                              isDark: theme.isDark,
+                              isWarning: isWarning,
+                              modelName: modelName,
+                              isRfTesting: key == 'RF' && monitor.isRfTesting,
+                              onDiagnosticsTap: key == 'RF'
+                                  ? _openRfDiagnosticsDialog
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+
+                // 2.5. Docked Wire Station Badge (Tilted along Bézier lead-in curve)
+                AnimatedPositioned(
+                  duration: effectsEnabled
+                      ? const Duration(milliseconds: 260)
+                      : Duration.zero,
+                  curve: Curves.easeOutCubic,
+                  left: dockedStationGeom.position.dx,
+                  top: dockedStationGeom.position.dy,
+                  child: FractionalTranslation(
+                    translation: const Offset(-0.5, -0.5),
+                    child: AnimatedOpacity(
+                      duration: effectsEnabled
+                          ? const Duration(milliseconds: 220)
+                          : Duration.zero,
+                      curve: Curves.easeOutCubic,
+                      opacity: hasDockedWireStation ? 1.0 : 0.0,
+                      child: IgnorePointer(
+                        ignoring: !hasDockedWireStation,
+                        child: _WireStationBadge(
+                          stationText: monitor.stationResult,
+                          angle: dockedStationGeom.angle,
+                          isDark: theme.isDark,
+                          onTap: () => _copyToClipboard(
+                            'STATION',
+                            monitor.stationResult,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              );
-            }),
 
-            // 2.5. Docked Wire Station Badge (Tilted along Bézier lead-in curve)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              left: dockedStationGeom.position.dx,
-              top: dockedStationGeom.position.dy,
-              child: FractionalTranslation(
-                translation: const Offset(-0.5, -0.5),
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
+                // 3. Floating Messenger Chathead Bubble with QQ Guardian Edge Docking
+                AnimatedPositioned(
+                  duration: effectsEnabled
+                      ? const Duration(milliseconds: 260)
+                      : Duration.zero,
                   curve: Curves.easeOutCubic,
-                  opacity: hasDockedWireStation ? 1.0 : 0.0,
-                  child: IgnorePointer(
-                    ignoring: !hasDockedWireStation,
-                    child: _WireStationBadge(
-                      stationText: monitor.stationResult,
-                      angle: dockedStationGeom.angle,
-                      isDark: theme.isDark,
-                      onTap: () =>
-                          _copyToClipboard('STATION', monitor.stationResult),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // 3. Floating Messenger Chathead Bubble with QQ Guardian Edge Docking
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              left: targetBubbleLeft,
-              top: bubbleTop,
-              child: RepaintBoundary(
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.grab,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // If window is at top corner (bubble below cards), Station Pill appears above the bubble
-                      if (!_isBottom &&
-                          hasStationPill &&
-                          (!isDockedCurrentSide || _bubbleHovered))
-                        _StationPill(
-                          stationText: monitor.stationResult,
-                          animation: _stationAnimController,
-                          isBottom: true,
-                        ),
-
-                      // Main Circular Chathead Bubble (Pops out when hovered at edge)
-                      GestureDetector(
-                        onTap: _toggleExpand,
-                        onPanStart: (_) => _startDrag(),
-                        onSecondaryTapDown: (details) =>
-                            _showContextMenu(context, details),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              width: bubbleSize,
-                              height: bubbleSize,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: bubbleGradient,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.55),
-                                    blurRadius: 18,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                  BoxShadow(
-                                    color:
-                                        (modelName == 'IQ5'
-                                                ? const Color(0xFF00ADB5)
-                                                : (modelName == 'IQ4'
-                                                      ? const Color(0xFF8E2DE2)
-                                                      : const Color(
-                                                          0xFF0084FF,
-                                                        )))
-                                            .withValues(
-                                              alpha: monitor.deviceConnected
-                                                  ? 0.55
-                                                  : 0.0,
-                                            ),
-                                    blurRadius: 18,
-                                    spreadRadius: 1,
-                                  ),
-                                ],
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.35),
-                                  width: 1.8,
-                                ),
-                              ),
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  // Glass top gloss highlight
-                                  Positioned(
-                                    top: 2,
-                                    left: 10,
-                                    right: 10,
-                                    height: 16,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(20),
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          colors: [
-                                            Colors.white.withValues(
-                                              alpha: 0.45,
-                                            ),
-                                            Colors.white.withValues(alpha: 0.0),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Content Column
-                                  Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        modelName,
-                                        style: const TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w900,
-                                          fontFamily: 'Outfit',
-                                          color: Colors.white,
-                                          height: 1.0,
-                                          shadows: [
-                                            Shadow(
-                                              color: Colors.black54,
-                                              blurRadius: 6,
-                                              offset: Offset(0, 1),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        subLabel,
-                                        style: TextStyle(
-                                          fontSize: 7.5,
-                                          fontWeight: FontWeight.w800,
-                                          fontFamily: 'Outfit',
-                                          color: Colors.white.withValues(
-                                            alpha: 0.9,
-                                          ),
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                  left: targetBubbleLeft,
+                  top: bubbleTop,
+                  child: RepaintBoundary(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.grab,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // If window is at top corner (bubble below cards), Station Pill appears above the bubble
+                          if (!_isBottom &&
+                              hasStationPill &&
+                              (!isDockedCurrentSide || _bubbleHovered))
+                            _StationPill(
+                              stationText: monitor.stationResult,
+                              animation: _stationAnimController,
+                              isBottom: true,
                             ),
 
-                            // Isolated Live Pulse Status Dot (Always centered on visible side of tucked sphere)
-                            Positioned(
-                              right: _isRight ? null : 1,
-                              left: _isRight ? 1 : null,
-                              top: 26,
-                              child: _PulseStatusDot(
-                                isConnected: monitor.deviceConnected,
-                                pulseAnimation: _pulseAnimController,
-                              ),
-                            ),
-
-                            // Mini Close Button on Hover
-                            if (_bubbleHovered)
-                              Positioned(
-                                top: -4,
-                                right: _isRight ? -4 : null,
-                                left: _isRight ? null : -4,
-                                child: GestureDetector(
-                                  onTap: _closeApp,
-                                  child: Container(
-                                    width: 18,
-                                    height: 18,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: const Color(0xFFEF4444),
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 1.2,
+                          // Main Circular Chathead Bubble (Pops out when hovered at edge)
+                          GestureDetector(
+                            onTap: _toggleExpand,
+                            onPanStart: (_) => _startDrag(),
+                            onSecondaryTapDown: (details) =>
+                                _showContextMenu(context, details),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: bubbleSize,
+                                  height: bubbleSize,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: bubbleGradient,
+                                    boxShadow: effectsEnabled
+                                        ? [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.55,
+                                              ),
+                                              blurRadius: 18,
+                                              offset: const Offset(0, 6),
+                                            ),
+                                            BoxShadow(
+                                              color:
+                                                  (modelName == 'IQ5'
+                                                          ? const Color(
+                                                              0xFF00ADB5,
+                                                            )
+                                                          : (modelName == 'IQ4'
+                                                                ? const Color(
+                                                                    0xFF8E2DE2,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFF0084FF,
+                                                                  )))
+                                                      .withValues(
+                                                        alpha:
+                                                            monitor
+                                                                .deviceConnected
+                                                            ? 0.55
+                                                            : 0.0,
+                                                      ),
+                                              blurRadius: 18,
+                                              spreadRadius: 1,
+                                            ),
+                                          ]
+                                        : const [],
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.35,
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.3,
-                                          ),
-                                          blurRadius: 4,
-                                        ),
-                                      ],
+                                      width: 1.8,
                                     ),
+                                  ),
+                                  child: Stack(
                                     alignment: Alignment.center,
-                                    child: const Icon(
-                                      Icons.close,
-                                      size: 10,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                            // OTA Update Available Badge
-                            if (ota.availableUpdate != null)
-                              Positioned(
-                                bottom: -2,
-                                right: _isRight ? null : -2,
-                                left: _isRight ? -2 : null,
-                                child: GestureDetector(
-                                  onTap: () => _openOtaUpdateDialog(
-                                    ota.availableUpdate!,
-                                  ),
-                                  child: Tooltip(
-                                    message:
-                                        'Có bản cập nhật mới: ${ota.availableUpdate!.version.displayVersion}',
-                                    child: Container(
-                                      width: 20,
-                                      height: 20,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: const Color(0xFF10B981),
-                                        border: Border.all(
-                                          color: Colors.white,
-                                          width: 1.5,
+                                    children: [
+                                      // Glass top gloss highlight
+                                      Positioned(
+                                        top: 2,
+                                        left: 10,
+                                        right: 10,
+                                        height: 16,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.white.withValues(
+                                                  alpha: 0.45,
+                                                ),
+                                                Colors.white.withValues(
+                                                  alpha: 0.0,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(
-                                              0xFF10B981,
-                                            ).withValues(alpha: 0.6),
-                                            blurRadius: 6,
-                                            spreadRadius: 1,
+                                      ),
+                                      // Content Column
+                                      Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            modelName,
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w900,
+                                              fontFamily: 'Outfit',
+                                              color: Colors.white,
+                                              height: 1.0,
+                                              shadows: [
+                                                Shadow(
+                                                  color: Colors.black54,
+                                                  blurRadius: 6,
+                                                  offset: Offset(0, 1),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            subLabel,
+                                            style: TextStyle(
+                                              fontSize: 7.5,
+                                              fontWeight: FontWeight.w800,
+                                              fontFamily: 'Outfit',
+                                              color: Colors.white.withValues(
+                                                alpha: 0.9,
+                                              ),
+                                              letterSpacing: 0.5,
+                                            ),
                                           ),
                                         ],
                                       ),
-                                      alignment: Alignment.center,
-                                      child: const Icon(
-                                        Icons.system_update_alt_rounded,
-                                        size: 11,
-                                        color: Colors.white,
+                                    ],
+                                  ),
+                                ),
+
+                                // Isolated Live Pulse Status Dot (Always centered on visible side of tucked sphere)
+                                Positioned(
+                                  right: _isRight ? null : 1,
+                                  left: _isRight ? 1 : null,
+                                  top: 26,
+                                  child: _PulseStatusDot(
+                                    isConnected: monitor.deviceConnected,
+                                    pulseAnimation: _pulseAnimController,
+                                  ),
+                                ),
+
+                                // Mini Close Button on Hover
+                                if (_bubbleHovered)
+                                  Positioned(
+                                    top: -4,
+                                    right: _isRight ? -4 : null,
+                                    left: _isRight ? null : -4,
+                                    child: GestureDetector(
+                                      onTap: _closeApp,
+                                      child: Container(
+                                        width: 18,
+                                        height: 18,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: const Color(0xFFEF4444),
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 1.2,
+                                          ),
+                                          boxShadow: effectsEnabled
+                                              ? [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withValues(alpha: 0.3),
+                                                    blurRadius: 4,
+                                                  ),
+                                                ]
+                                              : const [],
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: const Icon(
+                                          Icons.close,
+                                          size: 10,
+                                          color: Colors.white,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
 
-                      // If window is at bottom corner (bubble above cards), Station Pill appears below the bubble
-                      if (_isBottom &&
-                          hasStationPill &&
-                          (!isDockedCurrentSide || _bubbleHovered))
-                        _StationPill(
-                          stationText: monitor.stationResult,
-                          animation: _stationAnimController,
-                          isBottom: false,
-                        ),
-                    ],
+                                // OTA Update Available Badge
+                                if (ota.availableUpdate != null)
+                                  Positioned(
+                                    bottom: -2,
+                                    right: _isRight ? null : -2,
+                                    left: _isRight ? -2 : null,
+                                    child: GestureDetector(
+                                      onTap: () => _openOtaUpdateDialog(
+                                        ota.availableUpdate!,
+                                      ),
+                                      child: Tooltip(
+                                        message:
+                                            'Có bản cập nhật mới: ${ota.availableUpdate!.version.displayVersion}',
+                                        child: Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: const Color(0xFF10B981),
+                                            border: Border.all(
+                                              color: Colors.white,
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: effectsEnabled
+                                                ? [
+                                                    BoxShadow(
+                                                      color: const Color(
+                                                        0xFF10B981,
+                                                      ).withValues(alpha: 0.6),
+                                                      blurRadius: 6,
+                                                      spreadRadius: 1,
+                                                    ),
+                                                  ]
+                                                : const [],
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: const Icon(
+                                            Icons.system_update_alt_rounded,
+                                            size: 11,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+
+                          // If window is at bottom corner (bubble above cards), Station Pill appears below the bubble
+                          if (_isBottom &&
+                              hasStationPill &&
+                              (!isDockedCurrentSide || _bubbleHovered))
+                            _StationPill(
+                              stationText: monitor.stationResult,
+                              animation: _stationAnimController,
+                              isBottom: false,
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
 
-            // This region stays still while the bubble animates underneath it.
-            Positioned.fromRect(
-              rect: bubbleHoverRect,
-              child: BubbleHoverRegion(
-                onChanged: (hovered) {
-                  if (_bubbleHovered != hovered) {
-                    setState(() => _bubbleHovered = hovered);
-                  }
-                },
-              ),
-            ),
+                // This region stays still while the bubble animates underneath it.
+                Positioned.fromRect(
+                  rect: bubbleHoverRect,
+                  child: BubbleHoverRegion(
+                    onChanged: (hovered) {
+                      _powerCoordinator?.setHovered(hovered);
+                      if (_bubbleHovered != hovered) {
+                        setState(() => _bubbleHovered = hovered);
+                      }
+                    },
+                  ),
+                ),
 
-            // Toast Notification
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              top: toastTop,
-              left: toastLeft,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                opacity: _showToast ? 1.0 : 0.0,
-                child: IgnorePointer(
-                  ignoring: !_showToast,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF0F172A,
-                          ).withValues(alpha: 0.95),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: const Color(0xFF10B981),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
+                // Toast Notification
+                AnimatedPositioned(
+                  duration: effectsEnabled
+                      ? const Duration(milliseconds: 260)
+                      : Duration.zero,
+                  curve: Curves.easeOutCubic,
+                  top: toastTop,
+                  left: toastLeft,
+                  child: AnimatedOpacity(
+                    duration: effectsEnabled
+                        ? const Duration(milliseconds: 200)
+                        : Duration.zero,
+                    curve: Curves.easeOutCubic,
+                    opacity: _showToast ? 1.0 : 0.0,
+                    child: IgnorePointer(
+                      ignoring: !_showToast,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: BackdropFilter(
+                          enabled: effectsEnabled,
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
                               color: const Color(
-                                0xFF10B981,
-                              ).withValues(alpha: 0.3),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.check_circle,
-                              size: 12,
-                              color: Color(0xFF10B981),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              _toastMessage,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                fontFamily: 'Outfit',
+                                0xFF0F172A,
+                              ).withValues(alpha: 0.95),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFF10B981),
+                                width: 1,
                               ),
+                              boxShadow: effectsEnabled
+                                  ? [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFF10B981,
+                                        ).withValues(alpha: 0.3),
+                                        blurRadius: 8,
+                                      ),
+                                    ]
+                                  : const [],
                             ),
-                          ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 12,
+                                  color: Color(0xFF10B981),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _toastMessage,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontFamily: 'Outfit',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1582,9 +1794,12 @@ class _DutSwitchHeaderState extends State<DutSwitchHeader> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(9.0),
             child: BackdropFilter(
+              enabled: _DecorationMode.enabledOf(context),
               filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: _DecorationMode.enabledOf(context)
+                    ? const Duration(milliseconds: 180)
+                    : Duration.zero,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 7,
                   vertical: 1.5,
@@ -1606,14 +1821,16 @@ class _DutSwitchHeaderState extends State<DutSwitchHeader> {
                               : Colors.black.withValues(alpha: 0.12)),
                     width: 0.9,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(
-                        0xFF00ADB5,
-                      ).withValues(alpha: _isHovered ? 0.35 : 0.08),
-                      blurRadius: _isHovered ? 8 : 3,
-                    ),
-                  ],
+                  boxShadow: _DecorationMode.enabledOf(context)
+                      ? [
+                          BoxShadow(
+                            color: const Color(
+                              0xFF00ADB5,
+                            ).withValues(alpha: _isHovered ? 0.35 : 0.08),
+                            blurRadius: _isHovered ? 8 : 3,
+                          ),
+                        ]
+                      : const [],
                 ),
                 child: Row(
                   children: [
@@ -1719,6 +1936,7 @@ class _StationPill extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: BackdropFilter(
+          enabled: _DecorationMode.enabledOf(context),
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             margin: EdgeInsets.only(
@@ -1733,13 +1951,15 @@ class _StationPill extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.4),
                 width: 0.8,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF00ADB5).withValues(alpha: 0.5),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              boxShadow: _DecorationMode.enabledOf(context)
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFF00ADB5).withValues(alpha: 0.5),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : const [],
             ),
             child: Text(
               stationText,
@@ -1794,23 +2014,24 @@ class _WireStationBadge extends StatelessWidget {
                     : const Color(0xFF0084FF).withValues(alpha: 0.8),
                 width: 1.4,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      (isDark
-                              ? const Color(0xFF38BDF8)
-                              : const Color(0xFF0084FF))
-                          .withValues(alpha: 0.4),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-                BoxShadow(
-                  color: (isDark ? Colors.black : Colors.white).withValues(
-                    alpha: 0.6,
-                  ),
-                  blurRadius: 4,
-                ),
-              ],
+              boxShadow: _DecorationMode.enabledOf(context)
+                  ? [
+                      BoxShadow(
+                        color:
+                            (isDark
+                                    ? const Color(0xFF38BDF8)
+                                    : const Color(0xFF0084FF))
+                                .withValues(alpha: 0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                      BoxShadow(
+                        color: (isDark ? Colors.black : Colors.white)
+                            .withValues(alpha: 0.6),
+                        blurRadius: 4,
+                      ),
+                    ]
+                  : const [],
             ),
             child: Text(
               stationText,
@@ -1873,12 +2094,14 @@ class _PulseStatusDot extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: statusColor,
                 border: Border.all(color: const Color(0xFF0F172A), width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: statusColor.withValues(alpha: 0.8),
-                    blurRadius: 6,
-                  ),
-                ],
+                boxShadow: _DecorationMode.enabledOf(context)
+                    ? [
+                        BoxShadow(
+                          color: statusColor.withValues(alpha: 0.8),
+                          blurRadius: 6,
+                        ),
+                      ]
+                    : const [],
               ),
             ),
           ],
@@ -2263,6 +2486,7 @@ class InfoCard extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(7),
       child: BackdropFilter(
+        enabled: _DecorationMode.enabledOf(context),
         filter: ImageFilter.blur(sigmaX: 14.0, sigmaY: 14.0),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -2270,15 +2494,17 @@ class InfoCard extends StatelessWidget {
             color: bgColor,
             borderRadius: BorderRadius.circular(7),
             border: Border.all(color: borderColor, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: isWarning
-                    ? const Color(0xFFEF4444).withValues(alpha: 0.25)
-                    : Colors.black.withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            boxShadow: _DecorationMode.enabledOf(context)
+                ? [
+                    BoxShadow(
+                      color: isWarning
+                          ? const Color(0xFFEF4444).withValues(alpha: 0.25)
+                          : Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : const [],
           ),
           child: Row(
             children: [
@@ -2309,7 +2535,7 @@ class InfoCard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: _MarqueeText(
+                child: MarqueeText(
                   text: value,
                   isWarning: isWarning,
                   style: TextStyle(
@@ -2352,10 +2578,11 @@ class InfoCard extends StatelessWidget {
               ],
               if (fieldKey == 'RF') ...[
                 if (isRfTesting) ...[
-                  const SizedBox(
+                  SizedBox(
                     width: 10,
                     height: 10,
                     child: CircularProgressIndicator(
+                      value: _DecorationMode.enabledOf(context) ? null : 0.65,
                       strokeWidth: 1.5,
                       color: Color(0xFF00C6FF),
                     ),
@@ -2457,24 +2684,27 @@ class InfoCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Asymmetric Marquee Text Widget (Native Scrollport + 100% Extent Tracking)
 // ---------------------------------------------------------------------------
-class _MarqueeText extends StatefulWidget {
+class MarqueeText extends StatefulWidget {
   final String text;
   final TextStyle style;
   final bool isWarning;
 
-  const _MarqueeText({
+  const MarqueeText({
+    super.key,
     required this.text,
     required this.style,
     this.isWarning = false,
   });
 
   @override
-  State<_MarqueeText> createState() => _MarqueeTextState();
+  State<MarqueeText> createState() => _MarqueeTextState();
 }
 
-class _MarqueeTextState extends State<_MarqueeText> {
+class _MarqueeTextState extends State<MarqueeText> {
   final ScrollController _scrollController = ScrollController();
   bool _isScrolling = false;
+  bool _tickerEnabled = true;
+  int _epoch = 0;
   Timer? _holdTimer;
 
   @override
@@ -2484,26 +2714,65 @@ class _MarqueeTextState extends State<_MarqueeText> {
   }
 
   @override
-  void didUpdateWidget(covariant _MarqueeText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text) {
-      _holdTimer?.cancel();
-      _isScrolling = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startScrolling());
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tickerEnabled = TickerMode.valuesOf(context).enabled;
+    if (_tickerEnabled != tickerEnabled) {
+      _tickerEnabled = tickerEnabled;
+      if (!_tickerEnabled) {
+        _epoch++;
+        _holdTimer?.cancel();
+        _holdTimer = null;
+        _isScrolling = false;
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.offset);
+        }
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _tickerEnabled && !_isScrolling) {
+            _startScrolling();
+          }
+        });
+      }
     }
   }
 
-  Future<void> _waitHold(int ms) {
+  @override
+  void didUpdateWidget(covariant MarqueeText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _epoch++;
+      _holdTimer?.cancel();
+      _holdTimer = null;
+      _isScrolling = false;
+      // Invalidating the loop does not cancel an in-flight driven scroll.
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.offset);
+      }
+      if (_tickerEnabled) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _startScrolling());
+      }
+    }
+  }
+
+  Future<bool> _waitHold(int ms, int epoch) {
     _holdTimer?.cancel();
-    final completer = Completer<void>();
+    final completer = Completer<bool>();
     _holdTimer = Timer(Duration(milliseconds: ms), () {
-      if (!completer.isCompleted) completer.complete();
+      if (!completer.isCompleted) {
+        completer.complete(epoch == _epoch && mounted && _tickerEnabled);
+      }
     });
     return completer.future;
   }
 
   Future<void> _startScrolling() async {
-    if (!mounted || !_scrollController.hasClients || _isScrolling) return;
+    if (!mounted ||
+        !_scrollController.hasClients ||
+        _isScrolling ||
+        !_tickerEnabled) {
+      return;
+    }
 
     final maxExtent = _scrollController.position.maxScrollExtent;
     if (maxExtent <= 0) {
@@ -2512,46 +2781,89 @@ class _MarqueeTextState extends State<_MarqueeText> {
     }
 
     _isScrolling = true;
+    final epoch = ++_epoch;
 
     // Initial hold delay (1500ms)
-    await _waitHold(1500);
-    if (!mounted || !_scrollController.hasClients) {
-      _isScrolling = false;
+    final okHold1 = await _waitHold(1500, epoch);
+    if (!okHold1 ||
+        epoch != _epoch ||
+        !mounted ||
+        !_scrollController.hasClients ||
+        !_tickerEnabled) {
+      if (epoch == _epoch) _isScrolling = false;
       return;
     }
 
-    while (mounted && _scrollController.hasClients) {
+    while (mounted &&
+        _scrollController.hasClients &&
+        _tickerEnabled &&
+        epoch == _epoch) {
       // 1. Slow linear scroll to the end
       final travelDuration = Duration(milliseconds: widget.text.length * 60);
-      await _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: travelDuration,
-        curve: Curves.linear,
-      );
-      if (!mounted || !_scrollController.hasClients) break;
+      try {
+        await _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: travelDuration,
+          curve: Curves.linear,
+        );
+      } catch (_) {
+        break;
+      }
+      if (epoch != _epoch ||
+          !mounted ||
+          !_scrollController.hasClients ||
+          !_tickerEnabled) {
+        break;
+      }
 
       // Hold at the end (1500ms)
-      await _waitHold(1500);
-      if (!mounted || !_scrollController.hasClients) break;
+      final okHoldEnd = await _waitHold(1500, epoch);
+      if (!okHoldEnd ||
+          epoch != _epoch ||
+          !mounted ||
+          !_scrollController.hasClients ||
+          !_tickerEnabled) {
+        break;
+      }
 
       // 2. Fast snap bounce back to start (800ms)
-      await _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeOut,
-      );
-      if (!mounted || !_scrollController.hasClients) break;
+      try {
+        await _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeOut,
+        );
+      } catch (_) {
+        break;
+      }
+      if (epoch != _epoch ||
+          !mounted ||
+          !_scrollController.hasClients ||
+          !_tickerEnabled) {
+        break;
+      }
 
       // Hold at the start (1500ms)
-      await _waitHold(1500);
+      final okHoldStart = await _waitHold(1500, epoch);
+      if (!okHoldStart ||
+          epoch != _epoch ||
+          !mounted ||
+          !_scrollController.hasClients ||
+          !_tickerEnabled) {
+        break;
+      }
     }
 
-    _isScrolling = false;
+    if (epoch == _epoch) {
+      _isScrolling = false;
+    }
   }
 
   @override
   void dispose() {
+    _epoch++;
     _holdTimer?.cancel();
+    _holdTimer = null;
     _scrollController.dispose();
     super.dispose();
   }

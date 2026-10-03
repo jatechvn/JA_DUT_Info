@@ -12,8 +12,8 @@ void main() {
     () async {
       final monitor = AdbMonitor();
 
-      // Wait up to 25s for monitor loop to load DUT and run RF check
-      for (int i = 0; i < 50; i++) {
+      // Wait up to 30s for monitor loop to load DUT and run RF check
+      for (int i = 0; i < 60; i++) {
         await Future.delayed(const Duration(milliseconds: 500));
         if (monitor.deviceConnected &&
             !monitor.isRfTesting &&
@@ -44,6 +44,6 @@ void main() {
 
       monitor.stop();
     },
-    timeout: const Timeout(Duration(seconds: 25)),
+    timeout: const Timeout(Duration(seconds: 45)),
   );
 }

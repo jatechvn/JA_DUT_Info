@@ -35,6 +35,8 @@ config.json
 dist/
 dist_pack/
 backup/
+.package-stage-*/
+dist.release-*/
 *.lnk
 *.zip
 *.iml

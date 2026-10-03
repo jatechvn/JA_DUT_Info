@@ -2,7 +2,7 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.4.4 (DUT Disconnect & Acquisition Scope Recovery Edition)
+Version      : v2.4.5 (Flutter Desktop Power Optimizer & Native Title Metadata Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/
@@ -13,7 +13,8 @@ Description  : Ultra-lightweight floating desktop widget displaying Device
                boot completion detection, multi-retry parameter acquisition,
                automated RF wireless verification (PowerG 868/915MHz and
                SRF 319.5/345/433MHz), Bento Frosted Glass RF Diagnostics,
-               LAN OTA Update, QQ Guardian 80% edge docking, tilted wire
-               station badge along Bézier curves, adaptive toast alignment,
-               and per-region transparent mouse click-through.
+               Flutter Desktop Power Optimizer (zero-load idle/inactive sleep),
+               synchronized native window title and metadata, LAN OTA Update,
+               QQ Guardian 80% edge docking, tilted wire station badge along
+               Bézier curves, and per-region transparent mouse click-through.
 ========================================================================

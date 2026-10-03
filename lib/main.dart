@@ -6,6 +6,7 @@ import 'modules/constants.dart';
 import 'modules/logger_config.dart';
 import 'modules/logic.dart';
 import 'modules/services/ota_update_service.dart';
+import 'modules/services/power_coordinator.dart';
 import 'modules/ui/styles.dart';
 import 'modules/ui/main_window.dart';
 
@@ -21,6 +22,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AdbMonitor()),
         ChangeNotifierProvider.value(value: OtaUpdateService()),
+        ChangeNotifierProvider(create: (_) => PowerCoordinator()),
       ],
       child: const MyApp(),
     ),
@@ -39,6 +41,14 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: themeProvider.themeData,
       themeMode: themeProvider.isDark ? ThemeMode.dark : ThemeMode.light,
+      builder: (context, child) {
+        final powerCoordinator = Provider.of<PowerCoordinator>(context);
+        return TickerMode(
+          // Visible information can keep scrolling while decoration is idle.
+          enabled: powerCoordinator.isVisible,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const MainWindow(),
     );
   }

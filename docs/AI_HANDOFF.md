@@ -313,3 +313,84 @@ clean. Evidence: build/disconnect-regression-final.log. No physical USB removal
 or Windows UI validation, release build, dist replacement or deletion performed.
 Existing artifacts preserved. Next: verify actual unplug/replug while READING
 on a freshly built Windows app, then package safely if requested.
+
+# Power optimizer independent verification — 2026-10-03
+
+Reviewed the attached walkthrough against the dirty source changes in main.dart,
+main_window.dart, new power_coordinator.dart and power_coordinator_test.dart.
+No production source changes made during this verification; dist preserved.
+Global TickerMode integration is present. Full dart analyze reports no issues;
+format lib/test checks39 files with0 changes;74 offline tests pass. Both live
+test files were excluded deliberately; hardware acceptance was not rerun.
+
+Three additional reproduction tests against actual PowerCoordinator/MarqueeText
+fail: constructing the coordinator after lifecycle is already hidden still
+enables animations; hover retained across hide/show enables animations without
+focus or renewed hover; changing marquee text during active scrolling does not
+stop the old driven scroll during the new initial hold (offset75.41 ->131.96
+after300ms). Evidence: build/power_optimizer_audit_test.dart and
+build/power-optimizer-audit.log. These are audit reproductions, intentionally
+failing until corresponding production fixes; kept outside the normal suite.
+
+Walkthrough overstates coverage: phase test only exercises the forward leg in a
+copied sample widget, not MainWindow or reverse/rapid transitions; marquee test
+pauses before initial scrolling; background test uses a generic periodic timer,
+not AdbMonitor/RF/OTA consumers. Native hit-test WM_TIMER remains at20ms even
+with UI tickers muted. No measured Windows Release CPU/GPU/FPS, native visual
+validation, physical DUT acceptance, build/package or executable replacement.
+Do not claim zero CPU/GPU/FPS or live RF acceptance from these test results.
+Next: fix the three confirmed lifecycle/marquee findings with regressions, then
+exercise real MainWindow reverse/rapid transitions and measure native behavior.
+
+# Power optimizer fixes and lightweight states — 2026-10-03
+
+Fixed all three confirmed findings: PowerCoordinator synchronizes the binding's
+current lifecycle immediately after listener registration; hide clears stale
+hover/focus and ignores hover-enter events while hidden; MarqueeText explicitly
+stops the previous driven scroll when text changes before starting its new hold.
+Lifecycle updates use the same setters so direct hide and Flutter hide agree.
+
+User additionally requested effects off without ADB, after closing information,
+or when tucked at the screen edge. MainWindow now derives a local gate from
+deviceConnected, expanded state and actual edge/hover state. It explicitly stops
+pulse/station controllers, mutes descendant tickers/marquees, disables backdrop
+blur and glow/shadows, and applies collapsed/docked layout without transition.
+Connected/expanded UI resumes when revealed from the edge, subject to the power
+coordinator's lifecycle/idle gate. Hover/focus alone cannot bypass disconnected
+or collapsed states. Animation epochs reject stale completion callbacks.
+Business ADB/RF/OTA code and native click-through logic were not changed.
+
+Added power_optimizer_regression_test.dart (initial lifecycle states, stale hover,
+real lifecycle transitions and actual marquee text changes) and
+main_window_power_test.dart (real MainWindow with controlled ADB/native channel,
+isolated OTA config; tests gate/controllers/blur/shadows and recovery).
+83 offline tests passed in build/power-optimizer-fix-final.log; analyzer clean.
+Focused suite17 tests passed. SDK tools called directly; no flutter clean.
+Existing dirty changes retained. No hardware live tests, Windows executable
+launch, native visual/GPU measurement, package/build or dist changes performed.
+Next: build to a separate output and verify real Windows hide/reveal and GPU load
+without replacing the existing portable dist.
+
+# Reading marquee and device presentation transitions — 2026-10-03
+
+User clarified that scrolling text must remain enabled while information is open,
+and ADB connect/disconnect must trigger one-shot opening/closing effects.
+MaterialApp now gates tickers by visibility; MainWindow separates its decoration
+policy via _DecorationMode from the reading ticker gate. Text continues scrolling
+while connected information is expanded and the window visible, including idle,
+blur or a tucked bubble when cards remain visible. Hidden/collapsed/disconnected
+steady states still stop marquee. Blur/shadows, pulse/station and RF spinner stay
+disabled according to the previous lightweight policy; spinner is static there.
+
+Connection state changes start the existing360ms sprout/retract animation once
+when visible and expanded. A temporary gate permits closing after ADB removal,
+then returns to the lightweight disconnected state. Rebuilds alone do not trigger
+another device animation. No business service logic changes or artifact writes.
+
+Extended real MainWindow regression to verify actual marquee offset progresses
+without focus, freezes on window hide, and device animation has intermediate
+forward/reverse values before settling at1/0. Focused tests24 passed; final full
+offline suite83 passed, analyzer/format/diff check clean. Evidence:
+build/marquee-device-transition-final.log. Existing packaging-stage/release
+folders appearing in the dirty worktree were left untouched. No Windows visual,
+physical USB or GPU measurement, executable rebuild or packaging performed.

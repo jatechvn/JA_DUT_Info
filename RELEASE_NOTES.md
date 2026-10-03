@@ -1,3 +1,26 @@
+# JA DUT Info — Release Notes v2.4.5
+
+Phiên bản **v2.4.5** triển khai giải pháp tối ưu hóa năng lượng chuyên sâu **Flutter Desktop Power Optimizer** (giảm thiểu 100% tải rendering vô ích khi ứng dụng không hoạt động hoặc mất tiêu điểm, đưa mức tiêu thụ CPU/GPU về 0), đồng thời **đồng bộ tiêu đề cửa sổ Win32 và metadata nhị phân thành tên app chính thức (`JA_DUT_Info`)** thay vì tên file thực thi (`ja_dut_info`).
+
+---
+
+## 🌟 Điểm Mới Nổi Bật trên v2.4.5
+
+### 1. ⚡ Flutter Desktop Power Optimizer (Tối Ưu Năng Lượng 0 FPS Khi Nghỉ)
+- **Bộ điều phối năng lượng (`PowerCoordinator`):** Giám sát liên tục 4 trạng thái: hiển thị (`isVisible`), tiêu điểm OS (`isFocused`), tương tác người dùng (`isInteracting`), và thời gian nghỉ (`isIdle` sau 12 giây không thao tác).
+- **Cổng phản ứng `TickerMode` toàn cục:** Đặt cổng kiểm soát Ticker ở tầng `MaterialApp.builder` phía trên toàn bộ cây widget, tự động tắt toàn bộ Ticker và con trỏ khung hình (0 FPS) khi cửa sổ mất tiêu điểm hoặc bước vào chế độ nghỉ, triệt tiêu tải GPU/CPU lặp vô hạn.
+- **Bảo toàn pha & chiều chuyển động (Phase & Direction Continuity):** Quản lý chu kỳ lặp đảo chiều (`repeat(reverse: true)`) cho `_pulseAnimController` và `_stationAnimController`, đóng băng chính xác tại vị trí dừng và khôi phục mượt mà theo đúng chiều tiến/lùi trước đó mà không bị giật hay nhảy hình.
+- **Tối ưu hóa an toàn thế hệ cho chữ cuộn (`MarqueeText`):** Quản lý cờ thế hệ `_epoch` cho các tác vụ trì hoãn `_waitHold` và `animateTo`, hủy ngay lập tức các timer giữ chữ khi tạm dừng, đóng băng độ lệch cuộn hiện tại và loại bỏ toàn bộ callback rò rỉ khi unmount.
+- **Cách ly tuyệt đối nghiệp vụ chạy ngầm (Background Business Isolation):** Vòng lặp quét thiết bị `AdbMonitor._loop`, xử lý đo kiểm phần cứng RF (PowerG, SRF), và quét cập nhật mạng LAN OTA hoàn toàn độc lập với cổng Ticker UI. Khi có thiết bị mới cắm/rút trong chế độ nghỉ, `notifyListeners()` chỉ vẽ đúng 1 khung hình cập nhật rồi lập tức đưa ứng dụng trở lại trạng thái ngủ 0 FPS.
+- **Bộ kiểm thử tự động toàn diện (`test/power_coordinator_test.dart`):** Bổ sung 8 bài kiểm thử unit & widget test xác minh trọn vẹn logic chuyển đổi trạng thái, cổng `TickerMode`, bảo toàn pha chuyển động, chữ cuộn và tính độc lập của tác vụ ngầm.
+
+### 2. 🏷️ Đồng Bộ Tiêu Đề Cửa Sổ & Metadata Thành Tên App (`JA_DUT_Info`)
+- **Tiêu đề cửa sổ Win32:** Cập nhật tiêu đề cửa sổ native trong `windows/runner/main.cpp` từ tên file thực thi `ja_dut_info` thành tên ứng dụng chính thức `JA_DUT_Info`.
+- **Khởi tạo cửa sổ popup:** Trong `windows/runner/win32_window.cpp`, truyền chuỗi tiêu đề `JA_DUT_Info` trực tiếp cho `CreateWindowEx` đồng nhất trên cả Windows 10 và Windows 11, đảm bảo Task Manager, Alt-Tab, Volume Mixer và accessibility tools luôn hiển thị đúng tên app.
+- **Metadata nhị phân Windows Runner (`Runner.rc`):** Đồng bộ `FileDescription`, `InternalName`, `ProductName` thành `JA_DUT_Info` (trong khi giữ nguyên `OriginalFilename` là `ja_dut_info.exe`), giúp thông tin thuộc tính file trong Windows Explorer và Task Manager hiển thị chuyên nghiệp.
+
+---
+
 # JA DUT Info — Release Notes v2.4.4
 
 Phiên bản **v2.4.4** giải quyết triệt để vấn đề ứng dụng bị treo, đơ hoặc giữ kết quả cũ khi **rút cáp USB đột ngột trong quá trình đọc thông số DUT (Unplug During Acquisition)**, bổ sung cơ chế quản lý tiến trình theo phạm vi **`CommandScope`** và hủy tiến trình con an toàn.

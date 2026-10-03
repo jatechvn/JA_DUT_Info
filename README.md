@@ -1,15 +1,33 @@
-# 💬 JA DUT Info — DUT Disconnect & Acquisition Scope Recovery Edition (v2.4.4)
+# 💬 JA DUT Info — Power Optimizer & Native Metadata Edition (v2.4.5)
 
-> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
+> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Flutter Desktop Power Optimizer (0 FPS idle/inactive sleep)**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.4.4-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.4.5-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.4
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.5
+
+### 1. ⚡ Flutter Desktop Power Optimizer (Tối Ưu Năng Lượng 0 FPS Khi Nghỉ)
+- **Bộ điều phối năng lượng (`PowerCoordinator`):** Giám sát 4 trạng thái: hiển thị (`isVisible`), tiêu điểm OS (`isFocused`), tương tác người dùng (`isInteracting`), và thời gian nghỉ (`isIdle` sau 12 giây không thao tác).
+- **Cổng phản ứng `TickerMode` toàn cục:** Đặt cổng kiểm soát Ticker ở tầng `MaterialApp.builder`, tự động tắt toàn bộ Ticker (0 FPS) khi cửa sổ mất tiêu điểm hoặc bước vào chế độ nghỉ, triệt tiêu tải GPU/CPU vô ích.
+- **Bảo toàn pha & chiều chuyển động (Phase & Direction Continuity):** Quản lý chu kỳ lặp đảo chiều (`repeat(reverse: true)`) cho `_pulseAnimController` và `_stationAnimController`, đóng băng chính xác tại vị trí dừng và khôi phục mượt mà theo đúng chiều tiến/lùi trước đó.
+- **Tối ưu hóa an toàn thế hệ cho chữ cuộn (`MarqueeText`):** Quản lý cờ thế hệ `_epoch`, hủy ngay lập tức các timer giữ chữ khi tạm dừng, đóng băng độ lệch cuộn hiện tại và loại bỏ callback rò rỉ khi unmount.
+- **Cách ly tuyệt đối nghiệp vụ chạy ngầm (Background Business Isolation):** Vòng lặp quét thiết bị `AdbMonitor._loop`, xử lý đo kiểm phần cứng RF (PowerG, SRF), và quét cập nhật mạng LAN OTA hoàn toàn độc lập với cổng Ticker UI.
+
+### 2. 🏷️ Đồng Bộ Tiêu Đề Cửa Sổ & Metadata Thành Tên App (`JA_DUT_Info`)
+- **Tiêu đề cửa sổ Win32:** Cập nhật tiêu đề cửa sổ native trong `windows/runner/main.cpp` từ tên file thực thi `ja_dut_info` thành tên ứng dụng chính thức `JA_DUT_Info`.
+- **Khởi tạo cửa sổ popup:** Truyền chuỗi tiêu đề `JA_DUT_Info` trực tiếp cho `CreateWindowEx` đồng nhất trên cả Windows 10 và Windows 11, đảm bảo Task Manager, Alt-Tab, Volume Mixer luôn hiển thị đúng tên app.
+- **Metadata nhị phân Windows Runner (`Runner.rc`):** Đồng bộ `FileDescription`, `InternalName`, `ProductName` thành `JA_DUT_Info` (trong khi giữ nguyên `OriginalFilename` là `ja_dut_info.exe`).
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.4.4 & Trước Đó
+
+### [v2.4.4] DUT Disconnect & Acquisition Scope Recovery Edition
 
 ### 1. ⚡ Xử Lý Ngắt Kết Nối & Rút Cáp USB Trong Khi Đọc Thông Số (Unplug During Acquisition)
 - **Khắc phục đóng băng ứng dụng khi rút cáp:** Không còn hiện tượng ứng dụng bị treo đọc lệnh khi người dùng rút cáp USB giữa chừng.

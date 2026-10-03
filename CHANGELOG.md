@@ -5,6 +5,27 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 ---
 
 
+## [2.4.5] - 2026-10-03 — *Flutter Desktop Power Optimizer, App Title & Native Metadata Edition*
+
+### 🚀 Nâng cấp & Tính năng mới (Enhancements & Power Optimization)
+- **Tối Ưu Hóa Năng Lượng Màn Hình Nổi Desktop (Flutter Desktop Power Optimizer):**
+  - **Bộ điều phối năng lượng (`PowerCoordinator`):** Quản lý tập trung 4 trạng thái: hiển thị (`isVisible`), tiêu điểm OS (`isFocused`), tương tác người dùng (`isInteracting`), và thời gian nghỉ (`isIdle` sau 12 giây không thao tác).
+  - **Cổng phản ứng `TickerMode` toàn cục:** Đặt cổng kiểm soát Ticker ở tầng `MaterialApp.builder` phía trên toàn bộ cây widget, tự động tắt toàn bộ Ticker và con trỏ khung hình (0 FPS) khi cửa sổ mất tiêu điểm hoặc bước vào chế độ nghỉ, triệt tiêu tải GPU/CPU lặp vô hạn.
+  - **Bảo toàn pha & chiều chuyển động (Phase & Direction Continuity):** Quản lý chu kỳ lặp đảo chiều (`repeat(reverse: true)`) cho `_pulseAnimController` và `_stationAnimController`, đóng băng chính xác tại vị trí dừng và khôi phục mượt mà theo đúng chiều tiến/lùi trước đó mà không bị giật hay nhảy hình.
+  - **Tối ưu hóa an toàn thế hệ cho chữ cuộn (`MarqueeText`):** Quản lý cờ thế hệ `_epoch` cho các tác vụ trì hoãn `_waitHold` và `animateTo`, hủy ngay lập tức các timer giữ chữ khi tạm dừng, đóng băng độ lệch cuộn hiện tại và loại bỏ toàn bộ callback rò rỉ khi unmount.
+  - **Cách ly tuyệt đối nghiệp vụ chạy ngầm (Background Business Isolation):** Vòng lặp quét thiết bị `AdbMonitor._loop`, xử lý đo kiểm phần cứng RF (PowerG, SRF), và quét cập nhật mạng LAN OTA hoàn toàn độc lập với cổng Ticker UI. Khi có thiết bị mới cắm/rút trong chế độ nghỉ, `notifyListeners()` chỉ vẽ đúng 1 khung hình cập nhật rồi lập tức đưa ứng dụng trở lại trạng thái ngủ 0 FPS.
+  - **Bộ kiểm thử tự động toàn diện (`test/power_coordinator_test.dart`):** Bổ sung 8 bài kiểm thử unit & widget test xác minh trọn vẹn logic chuyển đổi trạng thái, cổng `TickerMode`, bảo toàn pha chuyển động, chữ cuộn và tính độc lập của tác vụ ngầm.
+
+- **Đồng Bộ Tiêu Đề Cửa Sổ & Metadata Thành Tên App (Native Title & Metadata Synchronization):**
+  - **Tiêu đề cửa sổ Win32:** Cập nhật tiêu đề cửa sổ native trong `windows/runner/main.cpp` từ tên file thực thi `ja_dut_info` thành tên ứng dụng chính thức `JA_DUT_Info`.
+  - **Khởi tạo cửa sổ popup:** Trong `windows/runner/win32_window.cpp`, truyền chuỗi tiêu đề `JA_DUT_Info` trực tiếp cho `CreateWindowEx` đồng nhất trên cả Windows 10 và Windows 11, đảm bảo Task Manager, Alt-Tab, Volume Mixer và accessibility tools luôn hiển thị đúng tên app.
+  - **Metadata nhị phân Windows Runner (`Runner.rc`):** Đồng bộ `FileDescription`, `InternalName`, `ProductName` thành `JA_DUT_Info` (trong khi giữ nguyên `OriginalFilename` là `ja_dut_info.exe`), giúp thông tin thuộc tính file trong Windows Explorer và Task Manager hiển thị chuyên nghiệp.
+
+### 📦 Phát hành
+- Đồng bộ version 2.4.5+13 trong pubspec.yaml, constants.dart, ABOUT.txt, CHANGELOG.md, RELEASE_NOTES.md, README.md, USERGUIDE.md, Runner.rc, main.cpp.
+
+---
+
 ## [2.4.4] - 2026-10-01 — *DUT Disconnect & Acquisition Scope Recovery Edition*
 
 ### 🚀 Nâng cấp & Sửa lỗi (Enhancements & Bug Fixes)
