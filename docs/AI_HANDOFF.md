@@ -394,3 +394,22 @@ offline suite83 passed, analyzer/format/diff check clean. Evidence:
 build/marquee-device-transition-final.log. Existing packaging-stage/release
 folders appearing in the dirty worktree were left untouched. No Windows visual,
 physical USB or GPU measurement, executable rebuild or packaging performed.
+
+# Connected information effects and RF spinner — 2026-10-03
+
+User reported the RF row looked frozen and requested effects on connected
+information rows. Root cause in source: RF spinner used a fixed value0.65 when
+the bubble decoration mode was off. Visible connected/expanded InfoCards now
+have their own decoration mode; their blur/shadows and marquee stay enabled
+regardless of bubble focus/idle/edge policy. RF spinner uses the actual reading
+TickerMode rather than bubble decoration mode, retaining indeterminate motion
+while information is visible and stopping when the window is hidden.
+Bubble effects and one-shot device transitions remain under their existing
+policy. No RF measurement/result/PASS logic changed; frozen indicator alone
+does not establish a hung RF operation.
+
+Real MainWindow test now simulates active RF, verifies all7 InfoCard filters
+enabled on blur/at edge, spinner controller and marquee advance while visible,
+and both freeze on hide; bubble effects remain lightweight. Relevant12 tests
+passed, analyzer and diff check clean. Evidence: build/rf-information-effects-final.log.
+No build, native Windows visual/hardware verification or dist changes performed.

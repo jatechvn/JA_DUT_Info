@@ -1,3 +1,22 @@
+# JA DUT Info — Release Notes v2.4.6
+
+Phiên bản **v2.4.6** tinh chỉnh hiển thị các thẻ thông tin (`InfoCard`) khi thiết bị được kết nối, đảm bảo giữ nguyên hiệu ứng kính mờ và đổ bóng sắc nét, đồng thời duy trì chuyển động quay liên tục cho biểu tượng kiểm tra sóng RF (`CircularProgressIndicator`) trong suốt thời gian hiển thị.
+
+---
+
+## 🌟 Điểm Mới Nổi Bật trên v2.4.6
+
+### 1. 🎨 Hiệu Ứng Thẻ Thông Tin Khi Kết Nối (Connected Information Rows Polish)
+- **Duy trì hiệu ứng Frosted Glass:** Các hàng thẻ thông số DUT (`InfoCard`) giữ nguyên bộ lọc làm mờ (`BackdropFilter`) và đổ bóng khi thiết bị đang kết nối, thẻ mở rộng và cửa sổ đang hiển thị, không bị tắt nhầm khi quả cầu chathead ở trạng thái nghỉ/mất focus.
+
+### 2. 📡 Con Trỏ Quay Đo Kiểm RF Linh Hoạt (Continuous RF Testing Motion)
+- **Chuyển động quay không gián đoạn:** Biểu tượng quay đo kiểm sóng RF chuyển sang sử dụng cổng phản ứng `TickerMode` đọc dữ liệu, duy trì hiệu ứng quay mượt mà khi cửa sổ đang mở và tự động tạm dừng an toàn khi cửa sổ bị ẩn/thu nhỏ.
+
+### 3. 🧪 Mở Rộng Bộ Kiểm Thử Hồi Quy
+- Bổ sung các bài kiểm thử tự động trong `test/main_window_power_test.dart` xác minh toàn bộ 7 thẻ thông số và con trỏ quay RF hoạt động đồng bộ.
+
+---
+
 # JA DUT Info — Release Notes v2.4.5
 
 Phiên bản **v2.4.5** triển khai giải pháp tối ưu hóa năng lượng chuyên sâu **Flutter Desktop Power Optimizer** (giảm thiểu 100% tải rendering vô ích khi ứng dụng không hoạt động hoặc mất tiêu điểm, đưa mức tiêu thụ CPU/GPU về 0), đồng thời **đồng bộ tiêu đề cửa sổ Win32 và metadata nhị phân thành tên app chính thức (`JA_DUT_Info`)** thay vì tên file thực thi (`ja_dut_info`).

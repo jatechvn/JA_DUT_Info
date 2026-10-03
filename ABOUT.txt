@@ -2,7 +2,7 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.4.5 (Flutter Desktop Power Optimizer & Native Title Metadata Edition)
+Version      : v2.4.6 (Connected Information Effects & RF Spinner Motion Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/

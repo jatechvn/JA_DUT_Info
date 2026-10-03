@@ -15,6 +15,8 @@ class _Monitor extends AdbMonitor {
   bool connected = false;
   @override
   bool get deviceConnected => connected;
+  @override
+  bool get isRfTesting => connected;
   void connect(bool value) {
     connected = value;
     notifyListeners();
@@ -107,12 +109,34 @@ void main() {
           .onTap!();
       void expectLightweight() {
         expect(pulse.isAnimating, isFalse);
+        final cardFilters = find.descendant(
+          of: find.byType(InfoCard),
+          matching: find.byType(BackdropFilter),
+        );
         final filters = tester.widgetList<BackdropFilter>(
-          find.byType(BackdropFilter),
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is BackdropFilter &&
+                !cardFilters.evaluate().any(
+                  (element) => identical(element.widget, widget),
+                ),
+          ),
         );
         expect(filters.every((filter) => !filter.enabled), isTrue);
+        final cardContainers = find.descendant(
+          of: find.byType(InfoCard),
+          matching: find.byType(Container),
+        );
         final decorations = tester
-            .widgetList<Container>(find.byType(Container))
+            .widgetList<Container>(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is Container &&
+                    !cardContainers.evaluate().any(
+                      (element) => identical(element.widget, widget),
+                    ),
+              ),
+            )
             .map((widget) => widget.decoration)
             .whereType<BoxDecoration>();
         expect(
@@ -139,6 +163,24 @@ void main() {
         power.setFocused(false);
         await tester.pump();
         expectLightweight();
+        void expectInformationEffects() {
+          final cards = find.byType(InfoCard);
+          expect(cards, findsNWidgets(7));
+          final filters = tester.widgetList<BackdropFilter>(
+            find.descendant(of: cards, matching: find.byType(BackdropFilter)),
+          );
+          expect(filters.every((filter) => filter.enabled), isTrue);
+          expect(
+            tester
+                .widget<CircularProgressIndicator>(
+                  find.byType(CircularProgressIndicator),
+                )
+                .value,
+            isNull,
+          );
+        }
+
+        expectInformationEffects();
         final marquee = find.byWidgetPredicate(
           (widget) => widget is MarqueeText && widget.text == longValue,
         );
@@ -153,13 +195,27 @@ void main() {
         await tester.pump(const Duration(milliseconds: 1500));
         await tester.pump();
         final previousOffset = scroll.offset;
+        final rfRotation =
+            tester
+                    .widget<AnimatedBuilder>(
+                      find.descendant(
+                        of: find.byType(CircularProgressIndicator),
+                        matching: find.byType(AnimatedBuilder),
+                      ),
+                    )
+                    .animation
+                as AnimationController;
+        final previousRotation = rfRotation.value;
         await tester.pump(const Duration(milliseconds: 300));
         expect(scroll.offset, greaterThan(previousOffset));
+        expect(rfRotation.value, isNot(previousRotation));
         power.setVisible(false);
         await tester.pump();
         final hiddenOffset = scroll.offset;
+        final hiddenRotation = rfRotation.value;
         await tester.pump(const Duration(milliseconds: 300));
         expect(scroll.offset, hiddenOffset);
+        expect(rfRotation.value, hiddenRotation);
         power.setVisible(true);
         power.setFocused(true);
         await tester.pump();
@@ -196,6 +252,7 @@ void main() {
         await tester.pump();
         expect(enabled(), isTrue); // Cards are still visible at the edge.
         expectLightweight();
+        expectInformationEffects();
         monitor.connect(false);
         await tester.pump();
         expect(sprout.isAnimating, isTrue);

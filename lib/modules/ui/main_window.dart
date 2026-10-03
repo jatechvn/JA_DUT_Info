@@ -1336,16 +1336,24 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                                 _copyToClipboard(key, val);
                               }
                             },
-                            child: _InfoCard(
-                              fieldKey: key,
-                              value: val,
-                              isDark: theme.isDark,
-                              isWarning: isWarning,
-                              modelName: modelName,
-                              isRfTesting: key == 'RF' && monitor.isRfTesting,
-                              onDiagnosticsTap: key == 'RF'
-                                  ? _openRfDiagnosticsDialog
-                                  : null,
+                            // Visible information stays animated even when the
+                            // bubble is idle, unfocused or tucked at the edge.
+                            child: _DecorationMode(
+                              enabled:
+                                  monitor.deviceConnected &&
+                                  _isExpanded &&
+                                  (_powerCoordinator?.isVisible ?? false),
+                              child: _InfoCard(
+                                fieldKey: key,
+                                value: val,
+                                isDark: theme.isDark,
+                                isWarning: isWarning,
+                                modelName: modelName,
+                                isRfTesting: key == 'RF' && monitor.isRfTesting,
+                                onDiagnosticsTap: key == 'RF'
+                                    ? _openRfDiagnosticsDialog
+                                    : null,
+                              ),
                             ),
                           ),
                         ),
@@ -2582,7 +2590,7 @@ class InfoCard extends StatelessWidget {
                     width: 10,
                     height: 10,
                     child: CircularProgressIndicator(
-                      value: _DecorationMode.enabledOf(context) ? null : 0.65,
+                      value: TickerMode.valuesOf(context).enabled ? null : 0.65,
                       strokeWidth: 1.5,
                       color: Color(0xFF00C6FF),
                     ),

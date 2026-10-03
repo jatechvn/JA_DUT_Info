@@ -1,15 +1,28 @@
-# 💬 JA DUT Info — Power Optimizer & Native Metadata Edition (v2.4.5)
+# 💬 JA DUT Info — Connected Information Effects & RF Spinner Motion Edition (v2.4.6)
 
 > **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Flutter Desktop Power Optimizer (0 FPS idle/inactive sleep)**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.4.5-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.4.6-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.5
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.6
+
+### 1. 🎨 Hiệu Ứng Thẻ Thông Tin Khi Kết Nối (Connected Information Effects)
+- **Duy trì hiệu ứng Frosted Glass:** Các hàng thẻ thông số DUT (`_InfoCard`) duy trì đầy đủ bộ lọc làm mờ (`BackdropFilter`) và đổ bóng khi thiết bị đang kết nối, thẻ mở rộng và cửa sổ đang hiển thị, không bị tắt nhầm khi quả cầu chathead ở trạng thái nghỉ/mất focus.
+
+### 2. 📡 Con Trỏ Quay Đo Kiểm RF Linh Hoạt (Continuous RF Testing Motion)
+- **Chuyển động quay không gián đoạn:** Biểu tượng quay đo kiểm sóng RF (`CircularProgressIndicator`) sử dụng cổng phản ứng `TickerMode` đọc dữ liệu, duy trì hiệu ứng quay mượt mà liên tục khi cửa sổ đang mở và tự động tạm dừng an toàn khi cửa sổ bị ẩn/thu nhỏ.
+
+### 3. 🧪 Mở Rộng Bộ Kiểm Thử Hồi Quy
+- Tích hợp các bài kiểm thử tự động trong `test/main_window_power_test.dart` xác minh toàn bộ 7 thẻ thông số và con trỏ quay RF hoạt động đồng bộ với cơ chế tiết kiệm năng lượng.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.4.5 & Trước Đó
 
 ### 1. ⚡ Flutter Desktop Power Optimizer (Tối Ưu Năng Lượng 0 FPS Khi Nghỉ)
 - **Bộ điều phối năng lượng (`PowerCoordinator`):** Giám sát 4 trạng thái: hiển thị (`isVisible`), tiêu điểm OS (`isFocused`), tương tác người dùng (`isInteracting`), và thời gian nghỉ (`isIdle` sau 12 giây không thao tác).

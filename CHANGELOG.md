@@ -5,6 +5,21 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 ---
 
 
+## [2.4.6] - 2026-10-03 — *Connected Information Effects & RF Spinner Motion Edition*
+
+### 🚀 Nâng cấp & Sửa lỗi (Enhancements & UI Polish)
+- **Hiệu Ứng Thẻ Thông Tin Khi Kết Nối (Connected Information Effects):**
+  - Các thẻ thông tin (`InfoCard`) duy trì chế độ trang trí mờ (`BackdropFilter`) và đổ bóng khi thiết bị được kết nối, thẻ mở rộng và cửa sổ đang hiển thị, độc lập với trạng thái idle/unfocused của quả cầu.
+- **Chuyển Động Con Trỏ Quay RF (RF Testing Spinner Motion):**
+  - Biểu tượng quay đo kiểm RF (`CircularProgressIndicator`) sử dụng cổng phản ứng `TickerMode` đọc dữ liệu thay vì chế độ trang trí quả cầu, duy trì chuyển động quay liên tục trong khi hiển thị và tạm dừng an toàn khi cửa sổ bị ẩn.
+- **Mở Rộng Bộ Kiểm Thử Hồi Quy (`test/main_window_power_test.dart`):**
+  - Bổ sung xác minh mô phỏng kiểm tra RF thực tế, kiểm tra 7 bộ lọc thẻ thông tin và con trỏ quay RF hoạt động đồng bộ.
+
+### 📦 Phát hành
+- Đồng bộ version 2.4.6+14 trong pubspec.yaml, constants.dart, ABOUT.txt, CHANGELOG.md, RELEASE_NOTES.md, README.md, USERGUIDE.md.
+
+---
+
 ## [2.4.5] - 2026-10-03 — *Flutter Desktop Power Optimizer, App Title & Native Metadata Edition*
 
 ### 🚀 Nâng cấp & Tính năng mới (Enhancements & Power Optimization)
