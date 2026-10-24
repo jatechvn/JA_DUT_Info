@@ -1,4 +1,4 @@
-# Hướng Dẫn Sử Dụng JA DUT Info (v2.4.6)
+# Hướng Dẫn Sử Dụng JA DUT Info (v2.5.0)
 
 Ứng dụng **JA DUT Info** là công cụ giám sát thông số phần cứng DUT trạm sản xuất thông minh dạng widget nổi màn hình, tích hợp nhận diện phần cứng đa nền tảng IQ4 / IQ5, giải mã giao thức PowerG 868MHz & 915MHz đa tầng, hỗ trợ phần cứng IQ5 (PowerG V4 & SRF Slot 3), khởi động cùng Windows (Autostart), thanh capsule đổi DUT nhanh trực quan, phát hiện hoàn tất khởi động (Boot Completion Detection), quét lặp thông số đa tầng (Multi-Retry), kiểm tra sóng vô tuyến không dây RF tự động, Flutter Desktop Power Optimizer (tiết kiệm năng lượng 0 FPS khi nghỉ/mất focus) và cập nhật qua mạng nội bộ LAN Over-The-Air (OTA).
 
@@ -7,7 +7,7 @@
 ## 1. Cài Đặt & Gỡ Cài Đặt Ứng Dụng
 
 ### 1.1. Cài đặt 1-Click (Không cần quyền Quản trị viên Administrator)
-1. Giải nén gói phát hành `JA_DUT_Info_v2.4.6_Windows_x64.zip`.
+1. Giải nén gói phát hành `JA_DUT_Info_v2.5.0_Windows_x64.zip`.
 2. Chạy đúp chuột vào tệp `install.bat` (hoặc chạy lệnh `install.bat /silent` trong kịch bản tự động).
 3. Ứng dụng sẽ được cài đặt trực tiếp vào:
    ```text
@@ -65,7 +65,7 @@ Khi kết nối bảng mạch hoặc panel vào máy tính qua cáp USB ADB, wid
 - **SRF Đa Tần Số (319.5 MHz, 345 MHz, 433 MHz):**
   - Tự động giải mã ma trận khe cắm `qolsys.srfslot.matrix` để nhận diện các module tần số hỗ trợ.
   - Gửi mã ping kiểm tra sức khỏe vi điều khiển MCU.
-  - Khi có thiết bị đối chuẩn **Golden Panel** (`persist.auto.run == '1'`) kết nối đồng thời, hệ thống tự động phát tín hiệu phát sóng chéo (`transact 18`) để kích hoạt kiểm tra thu phát giữa hai thiết bị.
+  - Khi có thiết bị đối chuẩn **Golden Panel** (`persist.auto.run == '1'`) kết nối đồng thời, hệ thống tự động phát tín hiệu phát sóng chéo (`transact 18`) để kích hoạt kiểm tra thu phát giữa hai thiết bị. Nếu thẻ SRF của Golden Panel bị thiếu, lỗi MCU hoặc là bản Rev 1 (`G16`/`D16`/`H16` không hỗ trợ phát TX), ứng dụng sẽ dừng sớm ngay lập tức và hiển thị cảnh báo **`GOLDEN ERR`** kèm phiên bản FW trực tiếp để tránh phán đoán nhầm lỗi lên DUT.
 
 ---
 

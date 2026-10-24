@@ -14,16 +14,11 @@ Future<void> showRfDiagnosticsDialog({
   required BuildContext context,
   VoidCallback? onDialogClosed,
 }) {
-  final theme = Provider.of<ThemeProvider>(context, listen: false);
-  final isDark = theme.isDark;
-
   return showGeneralDialog(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     barrierLabel: 'RfDiagnosticsDialog',
-    barrierColor: isDark
-        ? Colors.black.withValues(alpha: 0.65)
-        : Colors.black.withValues(alpha: 0.38),
+    barrierColor: Colors.transparent,
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (ctx, anim1, anim2) => const RfDiagnosticsDialog(),
     transitionBuilder: (ctx, anim1, anim2, child) {
@@ -52,12 +47,13 @@ class RfDiagnosticsDialog extends StatefulWidget {
 
 class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
   final FocusNode _focusNode = FocusNode();
+  bool _isAutoClosing = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
+      if (mounted) _focusNode.requestFocus();
     });
   }
 
@@ -72,6 +68,16 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
     final theme = Provider.of<ThemeProvider>(context);
     final isDark = theme.isDark;
     final monitor = Provider.of<AdbMonitor>(context);
+
+    if (!_isAutoClosing &&
+        (!monitor.deviceConnected || monitor.currentDut.isEmpty)) {
+      _isAutoClosing = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
 
     final pg = monitor.powerGResult;
     final srf = monitor.srfResult;
@@ -168,6 +174,58 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                             ],
                           ),
                         ),
+                        // Golden Panel status chip
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: monitor.goldenPanelSerial != null
+                                ? const Color(
+                                    0xFF10B981,
+                                  ).withValues(alpha: 0.14)
+                                : const Color(
+                                    0xFFF59E0B,
+                                  ).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: monitor.goldenPanelSerial != null
+                                  ? const Color(
+                                      0xFF10B981,
+                                    ).withValues(alpha: 0.35)
+                                  : const Color(
+                                      0xFFF59E0B,
+                                    ).withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.router_rounded,
+                                size: 10,
+                                color: monitor.goldenPanelSerial != null
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFFF59E0B),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                monitor.goldenPanelSerial != null
+                                    ? 'Golden: ${monitor.goldenPanelSerial}'
+                                    : 'No Golden',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: monitor.goldenPanelSerial != null
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFF59E0B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         // Close button
                         IconButton(
                           icon: Icon(
@@ -201,7 +259,17 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                               icon: Icons.wifi_tethering_rounded,
                               accentColor: const Color(0xFF00C6FF),
                               isDark: isDark,
-                              child: _buildPowerGContent(pg, isTesting, isDark),
+                              onRetest:
+                                  (monitor.isPowerGTesting ||
+                                      monitor.currentDut.isEmpty)
+                                  ? null
+                                  : () => monitor.retestPowerGOnly(),
+                              retestTooltip: 'Test riêng PowerG',
+                              child: _buildPowerGContent(
+                                pg,
+                                monitor.isPowerGTesting,
+                                isDark,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -212,10 +280,16 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                               icon: Icons.sensors_rounded,
                               accentColor: const Color(0xFFA855F7),
                               isDark: isDark,
+                              onRetest:
+                                  (monitor.isSrfTesting ||
+                                      monitor.currentDut.isEmpty)
+                                  ? null
+                                  : () => monitor.retestSrfOnly(),
+                              retestTooltip: 'Test riêng SRF',
                               child: _buildSrfContent(
                                 srf,
                                 monitor.goldenPanelSerial,
-                                isTesting,
+                                monitor.isSrfTesting,
                                 isDark,
                               ),
                             ),
@@ -305,6 +379,8 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
     required Color accentColor,
     required bool isDark,
     required Widget child,
+    VoidCallback? onRetest,
+    String? retestTooltip,
   }) {
     return Container(
       padding: const EdgeInsets.all(8),
@@ -338,10 +414,71 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (onRetest != null)
+                Tooltip(
+                  message: retestTooltip ?? 'Kiểm tra lại',
+                  child: InkWell(
+                    onTap: onRetest,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.refresh_rounded,
+                        size: 13,
+                        color: accentColor.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 6),
           Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignalMeter({
+    required double fraction,
+    required Color color,
+    required String label,
+    required bool isDark,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.graphic_eq_rounded, size: 10, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: fraction.clamp(0.0, 1.0),
+              minHeight: 4,
+              backgroundColor: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.08),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
         ],
       ),
     );
@@ -435,6 +572,19 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
           _buildInfoRow('Cổng phát:', pg.comPort!, isDark),
         if (pg.sensorId != null)
           _buildInfoRow('Sensor ID:', pg.sensorId!, isDark),
+        const Spacer(),
+        _buildSignalMeter(
+          fraction: isPass
+              ? 1.0
+              : (pg.status == PowerGStatus.mcuOk ? 0.55 : 0.18),
+          color: statusColor,
+          label: isPass
+              ? 'Thu sóng tốt (AutoLearn OK)'
+              : (pg.status == PowerGStatus.mcuOk
+                    ? 'MCU sẵn sàng (Chưa phát TX)'
+                    : 'Mất gói thu / Lỗi RF'),
+          isDark: isDark,
+        ),
       ],
     );
   }
@@ -482,11 +632,14 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
     }
 
     final isPass = srf.status == SrfStatus.pass;
+    final isGoldenErr = srf.status == SrfStatus.goldenError;
     final statusColor = isPass
         ? const Color(0xFF10B981)
         : (srf.status == SrfStatus.mcuOk
               ? const Color(0xFFF59E0B)
-              : const Color(0xFFEF4444));
+              : (isGoldenErr
+                    ? const Color(0xFFF97316)
+                    : const Color(0xFFEF4444)));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -507,7 +660,9 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                     ? Icons.check_circle_rounded
                     : (srf.status == SrfStatus.mcuOk
                           ? Icons.info_rounded
-                          : Icons.cancel_rounded),
+                          : (isGoldenErr
+                                ? Icons.warning_amber_rounded
+                                : Icons.cancel_rounded)),
                 size: 11,
                 color: statusColor,
               ),
@@ -515,7 +670,9 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
               Text(
                 isPass
                     ? 'PASS'
-                    : (srf.status == SrfStatus.mcuOk ? 'MCU OK' : 'FAIL'),
+                    : (srf.status == SrfStatus.mcuOk
+                          ? 'MCU OK'
+                          : (isGoldenErr ? 'LỖI GOLDEN' : 'FAIL')),
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
@@ -529,6 +686,8 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
         _buildInfoRow('Matrix:', srf.matrix, isDark),
         if (goldenSerial != null)
           _buildInfoRow('Golden:', goldenSerial, isDark),
+        if (srf.goldenFirmware != null && srf.goldenFirmware!.isNotEmpty)
+          _buildInfoRow('FW Golden:', srf.goldenFirmware!, isDark),
         Expanded(
           child: ListView.builder(
             itemCount: srf.slots.length,
@@ -547,6 +706,21 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                 ),
               );
             },
+          ),
+        ),
+        Tooltip(
+          message: srf.message,
+          child: _buildSignalMeter(
+            fraction: isPass
+                ? 1.0
+                : (srf.status == SrfStatus.mcuOk ? 0.55 : 0.18),
+            color: statusColor,
+            label: isPass
+                ? '5/5 pkts • RSSI ≥ -99 dBm'
+                : (srf.status == SrfStatus.mcuOk
+                      ? 'MCU OK (Chờ Golden TX)'
+                      : (isGoldenErr ? srf.message : 'Thiếu gói / RSSI thấp')),
+            isDark: isDark,
           ),
         ),
       ],

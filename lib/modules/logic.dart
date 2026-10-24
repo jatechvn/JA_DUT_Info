@@ -10,6 +10,7 @@ import 'services/powerg_service.dart';
 import 'services/srf_service.dart';
 import 'services/boot_gate.dart';
 import 'services/command_scope.dart';
+import 'services/dut_history_service.dart';
 
 class AdbMonitor extends ChangeNotifier {
   int _loadGeneration = 0;
@@ -19,6 +20,7 @@ class AdbMonitor extends ChangeNotifier {
   final Future<PowerGResult> Function(String) _verifyPowerG;
   final Future<SrfResult> Function(String, String?) _verifySrf;
   final Duration pollInterval;
+  final DutHistoryService history;
   CommandScope? _readScope;
   bool _loading = false;
   int _loopEpoch = 0;
@@ -55,8 +57,13 @@ class AdbMonitor extends ChangeNotifier {
   String? _goldenPanelSerial;
   String? get goldenPanelSerial => _goldenPanelSerial;
 
-  bool _isRfTesting = false;
-  bool get isRfTesting => _isRfTesting;
+  bool _isPowerGTesting = false;
+  bool get isPowerGTesting => _isPowerGTesting;
+
+  bool _isSrfTesting = false;
+  bool get isSrfTesting => _isSrfTesting;
+
+  bool get isRfTesting => _isPowerGTesting || _isSrfTesting;
 
   String _status = 'Waiting for DUT connection...';
   String get status => _status;
@@ -167,6 +174,7 @@ class AdbMonitor extends ChangeNotifier {
     Future<SrfResult> Function(String, String?)? srfVerifier,
     this.pollInterval = const Duration(seconds: 2),
     bool autoStart = true,
+    DutHistoryService? historyService,
   }) : _verifyPowerG =
            powerGVerifier ?? ((serial) => PowerGService().verifyDut(serial)),
        _verifySrf =
@@ -175,7 +183,12 @@ class AdbMonitor extends ChangeNotifier {
                SrfService().verifyDut(serial, goldenSerial: golden)),
        _command =
            command ??
-           ((args) => runCmd(args, timeout: const Duration(seconds: 5))) {
+           ((args) => runCmd(args, timeout: const Duration(seconds: 5))),
+       history =
+           historyService ??
+           ((command == null && powerGVerifier == null && srfVerifier == null)
+               ? (DutHistoryService()..loadFromDiskSyncSafe())
+               : DutHistoryService(storageFilePath: null)) {
     _bootGate = BootGate(
       (serial, property) =>
           _command(['adb', '-s', serial, 'shell', 'getprop', property]),
@@ -287,7 +300,8 @@ class AdbMonitor extends ChangeNotifier {
     bool isCurrent() =>
         _running && _currentDut == serial && _loadGeneration == generation;
     _bootReady = false;
-    _isRfTesting = false;
+    _isPowerGTesting = false;
+    _isSrfTesting = false;
     logger.info('Loading DUT: $serial');
     _currentDut = serial;
     _deviceConnected = true;
@@ -332,70 +346,54 @@ class AdbMonitor extends ChangeNotifier {
     // 2. Trigger non-blocking RF check now that boot is complete
     _checkRfAsync(serial);
 
-    // 3. Read PCASN with retry up to 5 times (allows I2C/EEPROM to settle)
+    // 3. Read PCASN and system identification properties in parallel
     String pcasnVal = 'N/A';
-    for (var attempt = 1; attempt <= 5; attempt++) {
-      if (!isCurrent()) return;
-      try {
-        final out = await _command([
-          'adb',
-          '-s',
-          serial,
-          'shell',
-          'testeepapi',
-          'r',
-          'pcasn',
-        ]);
-        final trimmed = out.trim();
-        if (trimmed.isNotEmpty &&
-            !trimmed.toLowerCase().contains('error') &&
-            !trimmed.toLowerCase().contains('not found')) {
-          pcasnVal = trimmed;
-          break;
+    final pcasnFuture = () async {
+      for (var attempt = 1; attempt <= 5; attempt++) {
+        if (!isCurrent()) return;
+        try {
+          final out = await _command([
+            'adb',
+            '-s',
+            serial,
+            'shell',
+            'testeepapi',
+            'r',
+            'pcasn',
+          ]);
+          final trimmed = out.trim();
+          if (trimmed.isNotEmpty &&
+              !trimmed.toLowerCase().contains('error') &&
+              !trimmed.toLowerCase().contains('not found')) {
+            pcasnVal = trimmed;
+            break;
+          }
+        } catch (e) {
+          logger.severe('Attempt $attempt failed to read PCASN: $e');
         }
-      } catch (e) {
-        logger.severe('Attempt $attempt failed to read PCASN: $e');
+        if (attempt < 5) await Future.delayed(const Duration(seconds: 1));
       }
-      if (attempt < 5) await Future.delayed(const Duration(seconds: 1));
-    }
+      if (pcasnVal.isEmpty ||
+          pcasnVal.toLowerCase().contains('error') ||
+          pcasnVal.toLowerCase().contains('not found')) {
+        pcasnVal = 'N/A';
+      }
+    }();
 
-    if (pcasnVal.isEmpty ||
-        pcasnVal.toLowerCase().contains('error') ||
-        pcasnVal.toLowerCase().contains('not found')) {
-      pcasnVal = 'N/A';
-    }
+    final sysPropsFuture = Future.wait<String>([
+      _command(['adb', '-s', serial, 'shell', 'getprop', 'qolsys.sys.config']),
+      _command(['adb', '-s', serial, 'shell', 'getprop', 'ro.build.product']),
+      _command(['adb', '-s', serial, 'shell', 'getprop', 'ro.product.device']),
+    ]);
 
+    await Future.wait<void>([pcasnFuture, sysPropsFuture]);
     if (!isCurrent()) return;
+
     _info['PCASN'] = pcasnVal;
-
-    // Read system properties early to accurately identify IQ4 vs IQ5
-    final sysConfig = (await _command([
-      'adb',
-      '-s',
-      serial,
-      'shell',
-      'getprop',
-      'qolsys.sys.config',
-    ])).trim();
-
-    final buildProduct = (await _command([
-      'adb',
-      '-s',
-      serial,
-      'shell',
-      'getprop',
-      'ro.build.product',
-    ])).trim();
-
-    final productDevice = (await _command([
-      'adb',
-      '-s',
-      serial,
-      'shell',
-      'getprop',
-      'ro.product.device',
-    ])).trim();
-    if (!isCurrent()) return;
+    final sysProps = await sysPropsFuture;
+    final sysConfig = sysProps[0].trim();
+    final buildProduct = sysProps[1].trim();
+    final productDevice = sysProps[2].trim();
 
     // Determine target overlay text
     if (isIq5Device(
@@ -417,10 +415,10 @@ class AdbMonitor extends ChangeNotifier {
     }
     notifyListeners();
 
-    // Spawn 3-second splash timer
-    final splashTimer = Future.delayed(const Duration(seconds: 3));
+    // Fast transition timer (reduced from 3s to 250ms for <1.5s total load)
+    final splashTimer = Future.delayed(const Duration(milliseconds: 250));
 
-    // 4. Fetch all other parameters with retry loops
+    // 4. Fetch all other parameters concurrently
     final List<Future<void>> tasks = [];
 
     // Pipeline task for SYSSN and Station Result (with retry up to 5 times)
@@ -730,8 +728,72 @@ class AdbMonitor extends ChangeNotifier {
       }
 
       _showOverlay = false;
+      _recordHistorySnapshot();
       notifyListeners();
     }
+  }
+
+  void _recordHistorySnapshot() {
+    if (!_deviceConnected || _currentDut.isEmpty) return;
+    final pcasn = _info['PCASN'] ?? 'N/A';
+    if (pcasn.isEmpty || pcasn == 'Đang đọc...') return;
+    final syssn = _info['SYSSN'] ?? '';
+    final syspn = _info['SYSPN'] ?? '';
+    final model = isIq5Device(pcasn: pcasn, syssn: syssn, syspn: syspn)
+        ? 'IQ5'
+        : (isIq4Device(pcasn: pcasn, syssn: syssn, syspn: syspn)
+              ? 'IQ4'
+              : (_overlayText == 'IQ5' || _overlayText == 'IQ4'
+                    ? _overlayText
+                    : 'DUT'));
+    final pgSum = _powerGResult?.displaySummary ?? (_info['PowerG'] ?? 'N/A');
+    final srfSum = _srfResult?.displaySummary ?? (_info['SRF'] ?? 'N/A');
+    final rfPass =
+        (_powerGResult?.isPass ?? false) || (_srfResult?.isPass ?? false);
+    history.recordSnapshot(
+      serial: _currentDut,
+      modelName: model,
+      stationResult: _stationResult,
+      info: _info,
+      powerGSummary: pgSum,
+      srfSummary: srfSum,
+      isRfPass: rfPass,
+    );
+  }
+
+  String formatFullDutReport() {
+    if (!_deviceConnected || _currentDut.isEmpty) {
+      return 'Chưa có thiết bị DUT kết nối.';
+    }
+    final pcasn = _info['PCASN'] ?? 'N/A';
+    final syssn = _info['SYSSN'] ?? 'N/A';
+    final syspn = _info['SYSPN'] ?? 'N/A';
+    final model = isIq5Device(pcasn: pcasn, syssn: syssn, syspn: syspn)
+        ? 'IQ5'
+        : (isIq4Device(pcasn: pcasn, syssn: syssn, syspn: syspn)
+              ? 'IQ4'
+              : (_overlayText == 'IQ5' || _overlayText == 'IQ4'
+                    ? _overlayText
+                    : 'DUT'));
+    final entry = DutHistoryEntry(
+      timestamp: DateTime.now(),
+      serial: _currentDut,
+      modelName: model,
+      stationResult: _stationResult,
+      info: _info,
+      powerGSummary:
+          _powerGResult?.displaySummary ?? (_info['PowerG'] ?? 'N/A'),
+      srfSummary: _srfResult?.displaySummary ?? (_info['SRF'] ?? 'N/A'),
+      isRfPass:
+          (_powerGResult?.isPass ?? false) || (_srfResult?.isPass ?? false),
+    );
+    return entry.formatReport();
+  }
+
+  Future<void> reloadCurrentDut() async {
+    if (_currentDut.isEmpty) return;
+    logger.info('User requested full reload for $_currentDut');
+    await _loadDut(_currentDut);
   }
 
   Future<void> _fetchStation(String syssn, String serial) async {
@@ -802,8 +864,15 @@ class AdbMonitor extends ChangeNotifier {
     }
   }
 
-  Future<void> _checkRfAsync(String serial) async {
-    if (!_running || !_bootReady || _currentDut != serial || _isRfTesting) {
+  Future<void> _checkRfAsync(
+    String serial, {
+    bool checkPowerG = true,
+    bool checkSrf = true,
+  }) async {
+    if (!_running || !_bootReady || _currentDut != serial) {
+      return;
+    }
+    if ((checkPowerG && _isPowerGTesting) || (checkSrf && _isSrfTesting)) {
       return;
     }
     final generation = _loadGeneration;
@@ -812,41 +881,55 @@ class AdbMonitor extends ChangeNotifier {
         _bootReady &&
         _currentDut == serial &&
         generation == _loadGeneration;
-    _isRfTesting = true;
-    _info['PowerG'] = 'Đang kiểm tra...';
-    _info['SRF'] = 'Đang kiểm tra...';
+
+    if (checkPowerG) {
+      _isPowerGTesting = true;
+      _info['PowerG'] = 'Đang kiểm tra...';
+    }
+    if (checkSrf) {
+      _isSrfTesting = true;
+      _info['SRF'] = 'Đang kiểm tra...';
+    }
     notifyListeners();
 
     try {
-      // Run PowerG and SRF checks concurrently
-      final pgFuture = _verifyPowerG(serial);
-      final srfFuture = _verifySrf(serial, _goldenPanelSerial);
-
-      await Future.wait<void>([
-        pgFuture.then((pgRes) {
-          if (isCurrent()) {
-            _powerGResult = pgRes;
-            _info['PowerG'] = pgRes.displaySummary;
-            notifyListeners();
-          }
-        }),
-        srfFuture.then((srfRes) {
-          if (isCurrent()) {
-            _srfResult = srfRes;
-            _info['SRF'] = srfRes.displaySummary;
-            notifyListeners();
-          }
-        }),
-      ]);
+      final futures = <Future<void>>[];
+      if (checkPowerG) {
+        futures.add(
+          _verifyPowerG(serial).then((pgRes) {
+            if (isCurrent()) {
+              _powerGResult = pgRes;
+              _info['PowerG'] = pgRes.displaySummary;
+              _recordHistorySnapshot();
+              notifyListeners();
+            }
+          }),
+        );
+      }
+      if (checkSrf) {
+        futures.add(
+          _verifySrf(serial, _goldenPanelSerial).then((srfRes) {
+            if (isCurrent()) {
+              _srfResult = srfRes;
+              _info['SRF'] = srfRes.displaySummary;
+              _recordHistorySnapshot();
+              notifyListeners();
+            }
+          }),
+        );
+      }
+      await Future.wait<void>(futures);
     } catch (e) {
       logger.severe('Failed to run RF check for $serial: $e');
       if (isCurrent()) {
-        _info['PowerG'] = 'Lỗi test RF';
-        _info['SRF'] = 'Lỗi test RF';
+        if (checkPowerG) _info['PowerG'] = 'Lỗi test RF';
+        if (checkSrf) _info['SRF'] = 'Lỗi test RF';
       }
     } finally {
       if (isCurrent()) {
-        _isRfTesting = false;
+        if (checkPowerG) _isPowerGTesting = false;
+        if (checkSrf) _isSrfTesting = false;
+        _recordHistorySnapshot();
         notifyListeners();
       }
     }
@@ -857,6 +940,28 @@ class AdbMonitor extends ChangeNotifier {
     logger.info('User requested RF retest for $_currentDut');
     final scope = _readScope;
     if (scope != null) await scope.run(() => _checkRfAsync(_currentDut));
+  }
+
+  Future<void> retestPowerGOnly() async {
+    if (_currentDut.isEmpty) return;
+    logger.info('User requested PowerG-only retest for $_currentDut');
+    final scope = _readScope;
+    if (scope != null) {
+      await scope.run(
+        () => _checkRfAsync(_currentDut, checkPowerG: true, checkSrf: false),
+      );
+    }
+  }
+
+  Future<void> retestSrfOnly() async {
+    if (_currentDut.isEmpty) return;
+    logger.info('User requested SRF-only retest for $_currentDut');
+    final scope = _readScope;
+    if (scope != null) {
+      await scope.run(
+        () => _checkRfAsync(_currentDut, checkPowerG: false, checkSrf: true),
+      );
+    }
   }
 
   void _clearDut() {
@@ -882,7 +987,8 @@ class AdbMonitor extends ChangeNotifier {
     };
     _powerGResult = null;
     _srfResult = null;
-    _isRfTesting = false;
+    _isPowerGTesting = false;
+    _isSrfTesting = false;
     _overlayText = 'NO DATA';
     _showOverlay = true;
     _stationResult = 'N/A';

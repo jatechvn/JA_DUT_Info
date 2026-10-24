@@ -11,16 +11,11 @@ Future<void> showOtaSettingsDialog({
   required BuildContext context,
   VoidCallback? onDialogClosed,
 }) {
-  final theme = Provider.of<ThemeProvider>(context, listen: false);
-  final isDark = theme.isDark;
-
   return showGeneralDialog(
     context: context,
     barrierDismissible: false,
     barrierLabel: 'OtaSettingsDialog',
-    barrierColor: isDark
-        ? Colors.black.withValues(alpha: 0.65)
-        : Colors.black.withValues(alpha: 0.38),
+    barrierColor: Colors.transparent,
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (ctx, anim1, anim2) => const OtaSettingsDialog(),
     transitionBuilder: (ctx, anim1, anim2, child) {

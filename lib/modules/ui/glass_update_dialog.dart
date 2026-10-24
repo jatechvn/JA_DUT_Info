@@ -12,16 +12,11 @@ Future<void> showGlassUpdateDialog({
   required UpdatePackageInfo packageInfo,
   VoidCallback? onDialogClosed,
 }) {
-  final theme = Provider.of<ThemeProvider>(context, listen: false);
-  final isDark = theme.isDark;
-
   return showGeneralDialog(
     context: context,
     barrierDismissible: false,
     barrierLabel: 'GlassUpdateDialog',
-    barrierColor: isDark
-        ? Colors.black.withValues(alpha: 0.65)
-        : Colors.black.withValues(alpha: 0.38),
+    barrierColor: Colors.transparent,
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (ctx, anim1, anim2) =>
         GlassUpdateDialog(packageInfo: packageInfo),

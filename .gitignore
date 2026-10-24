@@ -14,7 +14,7 @@ macos/Flutter/ephemeral/
 linux/flutter/ephemeral/
 
 # Logs and temporary files
-logs/*.log
+logs/
 assets/temp/
 
 # Local IDE / OS files

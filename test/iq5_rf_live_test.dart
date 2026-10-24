@@ -9,11 +9,15 @@ import 'package:ja_dut_info/modules/services/srf_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const serial = String.fromEnvironment('IQ5_RF_SERIAL');
+  const goldenEnv = String.fromEnvironment(
+    'GOLDEN_SERIAL',
+    defaultValue: 'bbb68d23',
+  );
   test(
     'IQ5 live RF services return honest measured status',
     () async {
       final pg = await PowerGService().verifyDut(serial);
-      final srf = await SrfService().verifyDut(serial, goldenSerial: '2b69e02');
+      final srf = await SrfService().verifyDut(serial, goldenSerial: goldenEnv);
       final result = {
         'serial': serial,
         'powerG': {
@@ -25,6 +29,7 @@ void main() {
         },
         'srf': {
           'status': srf.status.name,
+          'goldenFirmware': srf.goldenFirmware,
           'message': srf.message,
           'details': srf.rawDetails,
         },
@@ -35,6 +40,7 @@ void main() {
       // MCU readiness must never claim measured PowerG RF on this IQ5 path.
       expect(pg.status, PowerGStatus.mcuOk, reason: pg.message);
       expect(srf.status, SrfStatus.pass, reason: srf.rawDetails);
+      expect(srf.goldenFirmware, '11.2.0-G26');
       expect(srf.rawDetails, contains('RESULT:RX_OK:'));
     },
     skip: serial.isEmpty,

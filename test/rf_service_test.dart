@@ -3,6 +3,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ja_dut_info/modules/services/powerg_service.dart';
 import 'package:ja_dut_info/modules/services/srf_service.dart';
+import 'package:ja_dut_info/modules/ui/main_window.dart';
 
 void main() {
   test('matrix bands do not collide with protocol digits', () {
@@ -168,6 +169,38 @@ void main() {
       expect(passResult.isPass, isTrue);
       expect(passResult.displaySummary, contains('PASS'));
       expect(passResult.displaySummary, contains('319.5 MHz'));
+
+      const goldenErrResult = SrfResult(
+        status: SrfStatus.goldenError,
+        matrix: '0010',
+        goldenPanelSerial: 'bbb68d23',
+        goldenFirmware: '10.3.5-G16',
+        message:
+            'Thẻ Golden Slot 1 (10.3.5-G16) đời cũ Rev 1 ko phát được TX (cần G26)',
+      );
+      expect(goldenErrResult.isInstalled, isTrue);
+      expect(goldenErrResult.isPass, isFalse);
+      expect(goldenErrResult.isGoldenError, isTrue);
+      expect(
+        goldenErrResult.displaySummary,
+        startsWith('LỖI GOLDEN - Thẻ Golden Slot 1'),
+      );
+
+      // Verify Main Window RF summary combines both cards and surfaces Golden/SRF errors
+      const pgMcuOk = PowerGResult(
+        status: PowerGStatus.mcuOk,
+        fw: '53.10',
+        frequency: '915 MHz (NA)',
+        message: 'Card + MCU OK',
+      );
+      expect(
+        formatMainWindowRfSummary(pgMcuOk, goldenErrResult, 'N/A'),
+        startsWith('SRF: LỖI GOLDEN -'),
+      );
+      expect(
+        formatMainWindowRfSummary(pgMcuOk, passResult, 'N/A'),
+        equals('PG: MCU OK (915 MHz (NA)) • SRF: PASS (319.5 MHz)'),
+      );
     });
   });
 }

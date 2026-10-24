@@ -9,9 +9,28 @@ import 'transmitter_process.dart';
 enum SrfStatus {
   pass, // RF frames received from Golden Panel & MCU OK
   mcuOk, // MCU ping OK, but Golden Panel not found or RF test skipped
-  fail, // RF test failed or MCU error
+  fail, // RF test failed or MCU error on DUT
+  goldenError, // Golden Panel SRF card missing, MCU error, or unsupported Rev 1 (G16/D16/H16)
   notInstalled, // No SRF daughter card installed on DUT
   testing, // Test currently in progress
+}
+
+class GoldenTransmitResult {
+  final bool ok;
+  final bool isGoldenCardError;
+  final String? goldenFirmware;
+  final int? parcelCode;
+  final String errorMessage;
+  final String rawOutput;
+
+  const GoldenTransmitResult({
+    required this.ok,
+    this.isGoldenCardError = false,
+    this.goldenFirmware,
+    this.parcelCode,
+    this.errorMessage = '',
+    this.rawOutput = '',
+  });
 }
 
 class SrfSlotInfo {
@@ -41,6 +60,7 @@ class SrfResult {
   final String matrix;
   final List<SrfSlotInfo> slots;
   final String? goldenPanelSerial;
+  final String? goldenFirmware;
   final String message;
   final String rawDetails;
 
@@ -49,11 +69,13 @@ class SrfResult {
     this.matrix = '0000',
     this.slots = const [],
     this.goldenPanelSerial,
+    this.goldenFirmware,
     required this.message,
     this.rawDetails = '',
   });
 
   bool get isPass => status == SrfStatus.pass;
+  bool get isGoldenError => status == SrfStatus.goldenError;
   bool get isInstalled => status != SrfStatus.notInstalled;
 
   String get displaySummary {
@@ -67,6 +89,9 @@ class SrfResult {
     }
     if (status == SrfStatus.testing) {
       return 'Đang kiểm tra...';
+    }
+    if (status == SrfStatus.goldenError) {
+      return 'LỖI GOLDEN - $message';
     }
     return 'FAIL - $message';
   }
@@ -222,6 +247,198 @@ class SrfService {
       }
     }
     return null;
+  }
+
+  static int goldenSlotIndexForService(String serviceName) {
+    if (serviceName.endsWith('ttyHSL1')) return 1;
+    if (serviceName.endsWith('ttyHSL2')) return 2;
+    if (serviceName.endsWith('ttyHSL3')) return 3;
+    if (serviceName.endsWith('ttyHSL4')) return 4;
+    return 1;
+  }
+
+  static String expectedRev2CardForBrand(String brand) => switch (brand) {
+    'GE' => 'G26',
+    'DSC' => 'D26',
+    'Honeywell' => 'H26',
+    _ => 'Rev 2',
+  };
+
+  /// Reads the live PIC firmware version directly from the binder service via
+  /// Transaction 14 (`GetFullPicVer`), falling back to system properties if needed.
+  Future<String?> readLiveSlotFirmware(
+    String serial,
+    String serviceName,
+  ) async {
+    try {
+      final out = await runCmd([
+        'adb',
+        '-s',
+        serial,
+        'shell',
+        'service',
+        'call',
+        serviceName,
+        '14',
+      ]);
+      final parsed = srfParseParcelString16(out);
+      if (parsed != null && parsed.isNotEmpty) {
+        return parsed;
+      }
+    } catch (e) {
+      logger.warning(
+        '[SrfService] Error reading live FW on $serial ($serviceName): $e',
+      );
+    }
+    return null;
+  }
+
+  /// Pre-checks the Golden Panel's corresponding SRF slot before arming the
+  /// 30-second DUT receiver so Golden card/MCU errors fail fast (< 0.2s).
+  Future<GoldenTransmitResult> inspectGoldenSlot(
+    String goldenSerial,
+    SrfSlotInfo dutSlot,
+  ) async {
+    final serviceName = dutSlot.goldenServiceName;
+    final gSlot = goldenSlotIndexForService(serviceName);
+    try {
+      final checkOut = await runCmd([
+        'adb',
+        '-s',
+        goldenSerial,
+        'shell',
+        'service',
+        'check',
+        serviceName,
+      ]);
+      if (!srfServiceFound(checkOut, serviceName)) {
+        return GoldenTransmitResult(
+          ok: false,
+          isGoldenCardError: true,
+          errorMessage:
+              'Golden thiếu dịch vụ $serviceName (Slot $gSlot - ${dutSlot.frequency})',
+          rawOutput: checkOut,
+        );
+      }
+
+      final liveFw = await readLiveSlotFirmware(goldenSerial, serviceName);
+      final alive = await pingMcu(goldenSerial, serviceName);
+      if (!alive) {
+        return GoldenTransmitResult(
+          ok: false,
+          isGoldenCardError: true,
+          goldenFirmware: liveFw,
+          errorMessage:
+              'Golden mất kết nối/thiếu thẻ SRF ở Slot $gSlot (${dutSlot.frequency})',
+        );
+      }
+
+      if (liveFw != null && isUnsupportedGoldenRev1Firmware(liveFw)) {
+        final expected = expectedRev2CardForBrand(dutSlot.brand);
+        return GoldenTransmitResult(
+          ok: false,
+          isGoldenCardError: true,
+          goldenFirmware: liveFw,
+          parcelCode: 0x0a,
+          errorMessage:
+              'Thẻ Golden Slot $gSlot ($liveFw) đời cũ Rev 1 ko phát được TX (cần $expected)',
+        );
+      }
+
+      return GoldenTransmitResult(ok: true, goldenFirmware: liveFw);
+    } catch (e) {
+      logger.severe(
+        '[SrfService] Exception inspecting Golden slot $serviceName: $e',
+      );
+      return GoldenTransmitResult(
+        ok: false,
+        isGoldenCardError: true,
+        errorMessage: 'Không thể kết nối Golden Panel ($goldenSerial)',
+      );
+    }
+  }
+
+  /// Trigger transmission frame from Golden Panel with detailed Parcel error decoding
+  Future<GoldenTransmitResult> triggerGoldenTransmitDetailed(
+    String goldenSerial,
+    SrfSlotInfo dutSlot, {
+    String? knownGoldenFw,
+  }) async {
+    final serviceName = dutSlot.goldenServiceName;
+    final gSlot = goldenSlotIndexForService(serviceName);
+    try {
+      final result = await runTransmitterProcess('adb', [
+        '-s',
+        goldenSerial,
+        'shell',
+        'service',
+        'call',
+        serviceName,
+        '18',
+        's16',
+        'A49CA0',
+        'i32',
+        '0',
+        'i32',
+        '0',
+        'i32',
+        '2',
+        'i32',
+        '20',
+      ], timeout: const Duration(seconds: 8));
+      final out = result.stdout.toString();
+      final ok = result.exitCode == 0 && srfParcelSuccess(out, 0);
+      final parcelCode = srfParcelIntCode(out);
+      logger.info(
+        '[SrfService] Golden Panel transmit $serviceName: ok=$ok code=$parcelCode ($out)',
+      );
+      if (ok) {
+        return GoldenTransmitResult(
+          ok: true,
+          goldenFirmware: knownGoldenFw,
+          parcelCode: 0,
+          rawOutput: out,
+        );
+      }
+      final fw =
+          knownGoldenFw ??
+          await readLiveSlotFirmware(goldenSerial, serviceName);
+      if (parcelCode == 0x0a ||
+          (fw != null && isUnsupportedGoldenRev1Firmware(fw))) {
+        final expected = expectedRev2CardForBrand(dutSlot.brand);
+        return GoldenTransmitResult(
+          ok: false,
+          isGoldenCardError: true,
+          goldenFirmware: fw,
+          parcelCode: parcelCode ?? 0x0a,
+          errorMessage:
+              'Thẻ Golden Slot $gSlot (${fw ?? "Rev 1"}) đời cũ ko phát được TX (cần $expected)',
+          rawOutput: out,
+        );
+      }
+      final codeHex = parcelCode != null
+          ? '0x${parcelCode.toRadixString(16)}'
+          : 'timeout/binder';
+      return GoldenTransmitResult(
+        ok: false,
+        isGoldenCardError: true,
+        goldenFirmware: fw,
+        parcelCode: parcelCode,
+        errorMessage:
+            'Golden lỗi phát sóng TX ở Slot $gSlot (${dutSlot.frequency}, mã: $codeHex)',
+        rawOutput: out,
+      );
+    } catch (e) {
+      logger.severe(
+        '[SrfService] Exception triggering Golden Panel transmit: $e',
+      );
+      return GoldenTransmitResult(
+        ok: false,
+        isGoldenCardError: true,
+        goldenFirmware: knownGoldenFw,
+        errorMessage: 'Lỗi gọi phát sóng trên Golden Slot $gSlot ($e)',
+      );
+    }
   }
 
   /// Trigger transmission frame from Golden Panel for a given slot
@@ -526,20 +743,63 @@ class SrfService {
       );
     }
     final details = StringBuffer();
+    String? verifiedGoldenFw;
     for (final slot in slots) {
+      // Pre-check Golden Panel's slot (live FW, service existence, MCU ping)
+      // so Rev 1 cards (e.g. 10.3.5-G16) or dead Golden slots fail fast (<0.2s)
+      final precheck = await inspectGoldenSlot(goldenSerial, slot);
+      verifiedGoldenFw = precheck.goldenFirmware ?? verifiedGoldenFw;
+      if (!precheck.ok) {
+        return SrfResult(
+          status: SrfStatus.goldenError,
+          matrix: matrix,
+          slots: slots,
+          goldenPanelSerial: goldenSerial,
+          goldenFirmware: verifiedGoldenFw,
+          message: precheck.errorMessage,
+          rawDetails: precheck.rawOutput,
+        );
+      }
+
+      GoldenTransmitResult? txResult;
       final received = await receiveSrfOnDut(
         dutSerial,
         srfAirId(slot.brand)!,
-        () => triggerGoldenTransmit(goldenSerial, slot.goldenServiceName),
+        () async {
+          final res = await triggerGoldenTransmitDetailed(
+            goldenSerial,
+            slot,
+            knownGoldenFw: precheck.goldenFirmware,
+          );
+          txResult = res;
+          verifiedGoldenFw = res.goldenFirmware ?? verifiedGoldenFw;
+          return res.ok;
+        },
       );
       details.writeln(received.details);
       if (!received.passed) {
+        if (txResult != null && !txResult!.ok) {
+          return SrfResult(
+            status: SrfStatus.goldenError,
+            matrix: matrix,
+            slots: slots,
+            goldenPanelSerial: goldenSerial,
+            goldenFirmware: verifiedGoldenFw,
+            message: txResult!.errorMessage,
+            rawDetails: details.toString(),
+          );
+        }
+        final fwLabel = verifiedGoldenFw != null && verifiedGoldenFw!.isNotEmpty
+            ? verifiedGoldenFw!
+            : slot.frequency;
         return SrfResult(
           status: SrfStatus.fail,
           matrix: matrix,
           slots: slots,
           goldenPanelSerial: goldenSerial,
-          message: 'Không xác nhận đủ 5 gói SRF hoặc lỗi phát/dọn dẹp listener',
+          goldenFirmware: verifiedGoldenFw,
+          message:
+              'Golden đã phát TX ($fwLabel) nhưng DUT không thu đủ 5 gói (kiểm tra ăng-ten Golden/DUT)',
           rawDetails: details.toString(),
         );
       }
@@ -549,6 +809,7 @@ class SrfService {
       matrix: matrix,
       slots: slots,
       goldenPanelSerial: goldenSerial,
+      goldenFirmware: verifiedGoldenFw,
       message: 'RF PASS (5 gói đúng Air ID, RSSI ≥ -99 dBm)',
       rawDetails: details.toString(),
     );

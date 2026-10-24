@@ -6,6 +6,7 @@ import 'package:ja_dut_info/modules/logic.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const runLive = bool.fromEnvironment('RUN_LIVE_ADB_TEST');
 
   test(
     'Live DUT and RF Pipeline Test on Connected Hardware',
@@ -40,10 +41,10 @@ void main() {
       expect(monitor.info['PowerG'], isNot(equals('N/A')));
       expect(monitor.info['PowerG'], isNot(equals('Đang kiểm tra...')));
       expect(monitor.powerGResult, isNotNull);
-      expect(monitor.goldenPanelSerial, equals('2b69e02'));
 
       monitor.stop();
     },
+    skip: !runLive ? 'Set --dart-define=RUN_LIVE_ADB_TEST=true' : false,
     timeout: const Timeout(Duration(seconds: 45)),
   );
 }

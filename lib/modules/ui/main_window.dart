@@ -7,15 +7,54 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../constants.dart';
+import '../logger_config.dart';
 import '../logic.dart';
 import '../services/autostart_service.dart';
+import '../services/dut_validator.dart';
 import '../services/ota_update_service.dart';
 import '../services/power_coordinator.dart';
+import '../services/powerg_service.dart';
+import '../services/srf_service.dart';
 import 'styles.dart';
 import 'bubble_hover_region.dart';
+import 'dut_history_dialog.dart';
 import 'glass_update_dialog.dart';
 import 'ota_settings_dialog.dart';
 import 'rf_diagnostics_dialog.dart';
+
+String formatMainWindowRfSummary(
+  PowerGResult? pg,
+  SrfResult? srf,
+  String fallback,
+) {
+  final hasPg = pg != null && pg.isInstalled;
+  final hasSrf = srf != null && srf.isInstalled;
+  if (hasPg && hasSrf) {
+    if (srf.isGoldenError || (!srf.isPass && srf.status != SrfStatus.mcuOk)) {
+      return 'SRF: ${srf.displaySummary} • PG: ${pg.displaySummary}';
+    }
+    if (!pg.isPass && pg.status != PowerGStatus.mcuOk) {
+      return 'PG: ${pg.displaySummary} • SRF: ${srf.displaySummary}';
+    }
+    if (pg.isPass && srf.isPass) {
+      return 'PG: PASS (${pg.frequency}) • SRF: PASS';
+    }
+    final pgShort = pg.isPass
+        ? 'PASS (${pg.frequency})'
+        : 'MCU OK (${pg.frequency})';
+    final srfFreq = srf.slots.map((s) => s.frequency).join(', ');
+    final srfShort = srf.isPass
+        ? 'PASS ($srfFreq)'
+        : (srf.status == SrfStatus.mcuOk
+              ? 'MCU OK ($srfFreq)'
+              : srf.displaySummary);
+    return 'PG: $pgShort • SRF: $srfShort';
+  }
+  if (hasPg) return pg.displaySummary;
+  if (hasSrf) return srf.displaySummary;
+  if (pg != null || srf != null) return 'N/A - Không có card';
+  return fallback;
+}
 
 Rect? measuredHeaderRect(GlobalKey key, RenderBox root) {
   final box = key.currentContext?.findRenderObject();
@@ -324,6 +363,16 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     );
   }
 
+  void _openDutHistoryDialog() {
+    setState(() => _isDialogOpen = true);
+    showDutHistoryDialog(
+      context: context,
+      onDialogClosed: () {
+        if (mounted) setState(() => _isDialogOpen = false);
+      },
+    );
+  }
+
   Future<void> _checkOtaManually() async {
     _triggerToast('Đang kiểm tra cập nhật trên LAN...');
     try {
@@ -509,6 +558,100 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
               ],
             ),
           ),
+        if (monitor.deviceConnected) ...[
+          PopupMenuItem<String>(
+            value: 'copy_all',
+            height: 34,
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.copy_all_rounded,
+                  size: 16,
+                  color: Color(0xFF10B981),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Sao chép toàn bộ thông số DUT',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                    color: theme.isDark
+                        ? Colors.white
+                        : const Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'reload_dut',
+            height: 34,
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.sync_rounded,
+                  size: 16,
+                  color: Color(0xFF0084FF),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Đọc lại toàn bộ thông số DUT',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                    color: theme.isDark
+                        ? Colors.white
+                        : const Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        PopupMenuItem<String>(
+          value: 'dut_history',
+          height: 34,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.history_rounded,
+                size: 16,
+                color: Color(0xFFF59E0B),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Lịch sử DUT trong phiên (${monitor.history.count})...',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'open_logs',
+          height: 34,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.folder_open_rounded,
+                size: 16,
+                color: Color(0xFF38BDF8),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Mở thư mục Log phiên đo',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
         // LAN OTA Update menu items
         const PopupMenuDivider(height: 1),
         if (ota.availableUpdate != null)
@@ -701,6 +844,23 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
           monitor.selectDut(nextDut);
           _triggerToast('Đã chuyển sang DUT: $nextDut');
         }
+      } else if (value == 'copy_all') {
+        final report = monitor.formatFullDutReport();
+        Clipboard.setData(ClipboardData(text: report));
+        _triggerToast('Đã sao chép toàn bộ thông số DUT!');
+      } else if (value == 'reload_dut') {
+        monitor.reloadCurrentDut();
+        _triggerToast('Đang đọc lại toàn bộ thông số DUT...');
+      } else if (value == 'dut_history') {
+        _openDutHistoryDialog();
+      } else if (value == 'open_logs') {
+        openLogsDirectory().then((ok) {
+          if (mounted) {
+            _triggerToast(
+              ok ? 'Đã mở thư mục Log!' : 'Không thể mở thư mục Log',
+            );
+          }
+        });
       } else if (value == 'toggle_autostart') {
         final newTarget = !_autostartEnabled;
         AutostartService.setAutostartEnabled(newTarget).then((ok) {
@@ -1167,33 +1327,34 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
               clipBehavior: Clip.none,
               children: [
                 // 1. Dynamic Bézier Leader Wires with Dedicated RepaintBoundary
-                Positioned.fill(
-                  child: RepaintBoundary(
-                    child: AnimatedBuilder(
-                      animation: _sproutAnimController,
-                      builder: (context, _) {
-                        return CustomPaint(
-                          painter: _WirePainter(
-                            bubbleAnchor: bubbleAnchor,
-                            cardTargetX: cardWireTargetX,
-                            cardCenterYs: cardCenterYs,
-                            growthProgress: _sproutAnimController.value,
-                            hoveredIndex: _hoveredKey != null
-                                ? keys.indexOf(_hoveredKey!)
-                                : null,
-                            isDark: theme.isDark,
-                            isRight: _isRight,
-                            isBottom: _isBottom,
-                            verticalWireX: verticalWireX,
-                          ),
-                        );
-                      },
+                if (!_isDialogOpen)
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: _sproutAnimController,
+                        builder: (context, _) {
+                          return CustomPaint(
+                            painter: _WirePainter(
+                              bubbleAnchor: bubbleAnchor,
+                              cardTargetX: cardWireTargetX,
+                              cardCenterYs: cardCenterYs,
+                              growthProgress: _sproutAnimController.value,
+                              hoveredIndex: _hoveredKey != null
+                                  ? keys.indexOf(_hoveredKey!)
+                                  : null,
+                              isDark: theme.isDark,
+                              isRight: _isRight,
+                              isBottom: _isBottom,
+                              verticalWireX: verticalWireX,
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
-                ),
 
                 // 2. Mini Floating Capsule Header for Quick DUT Switch (When >1 DUT connected)
-                if (hasMultiDut)
+                if (hasMultiDut && !_isDialogOpen)
                   AnimatedPositioned(
                     duration: effectsEnabled
                         ? const Duration(milliseconds: 260)
@@ -1240,127 +1401,120 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
                   ),
 
                 // 3. Vertical Stacking Frosted Glass Cards (Smooth Animation & Snug Edge Alignment)
-                ...keys.asMap().entries.map((entry) {
-                  final idx = entry.key;
-                  final key = entry.value;
-                  String val;
-                  if (key == 'RF') {
-                    if (monitor.isRfTesting) {
-                      val = 'Đang kiểm tra sóng RF...';
-                    } else if (monitor.powerGResult != null) {
-                      final pg = monitor.powerGResult!;
-                      final srf = monitor.srfResult;
-                      if (pg.isPass && (srf?.isPass ?? false)) {
-                        val = 'PG: PASS (${pg.frequency}) • SRF: PASS';
-                      } else if (pg.isPass) {
-                        val = pg.displaySummary;
-                      } else if (srf?.isPass ?? false) {
-                        val = srf!.displaySummary;
-                      } else if (pg.isInstalled) {
-                        val = pg.displaySummary;
-                      } else if (srf?.isInstalled ?? false) {
-                        val = srf!.displaySummary;
+                if (!_isDialogOpen)
+                  ...keys.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final key = entry.value;
+                    String val;
+                    if (key == 'RF') {
+                      if (monitor.isRfTesting) {
+                        val = 'Đang kiểm tra sóng RF...';
                       } else {
-                        val = 'N/A - Không có card';
+                        val = formatMainWindowRfSummary(
+                          monitor.powerGResult,
+                          monitor.srfResult,
+                          monitor.info['PowerG'] ?? 'N/A',
+                        );
                       }
                     } else {
-                      val = monitor.info['PowerG'] ?? 'N/A';
+                      val = monitor.info[key] ?? 'N/A';
                     }
-                  } else {
-                    val = monitor.info[key] ?? 'N/A';
-                  }
-                  final isWarning =
-                      key == 'LCMPN' && val.contains('không được chạy lại');
+                    final isWarning = DutValidator.isFieldWarning(
+                      key,
+                      val,
+                      monitor.info,
+                    );
 
-                  return AnimatedPositioned(
-                    duration: effectsEnabled
-                        ? const Duration(milliseconds: 260)
-                        : Duration.zero,
-                    curve: Curves.easeOutCubic,
-                    left: targetCardsLeft,
-                    top: startY + idx * (cardHeight + cardGap),
-                    width: cardWidth,
-                    height: cardHeight,
-                    child: RepaintBoundary(
-                      child: AnimatedBuilder(
-                        animation: _sproutAnimController,
-                        builder: (context, child) {
-                          final itemDelay = idx * 0.07;
-                          final animVal =
-                              ((_sproutAnimController.value - itemDelay) /
-                                      (1.0 - itemDelay))
-                                  .clamp(0.0, 1.0);
-                          final curvedVal = Curves.easeOutCubic.transform(
-                            animVal,
-                          );
+                    return AnimatedPositioned(
+                      duration: effectsEnabled
+                          ? const Duration(milliseconds: 260)
+                          : Duration.zero,
+                      curve: Curves.easeOutCubic,
+                      left: targetCardsLeft,
+                      top: startY + idx * (cardHeight + cardGap),
+                      width: cardWidth,
+                      height: cardHeight,
+                      child: RepaintBoundary(
+                        child: AnimatedBuilder(
+                          animation: _sproutAnimController,
+                          builder: (context, child) {
+                            final itemDelay = idx * 0.07;
+                            final animVal =
+                                ((_sproutAnimController.value - itemDelay) /
+                                        (1.0 - itemDelay))
+                                    .clamp(0.0, 1.0);
+                            final curvedVal = Curves.easeOutCubic.transform(
+                              animVal,
+                            );
 
-                          if (curvedVal <= 0.01) {
-                            return const SizedBox.shrink();
-                          }
+                            if (curvedVal <= 0.01) {
+                              return const SizedBox.shrink();
+                            }
 
-                          // Slide direction adapts to corner orientation
-                          final slideOffsetX = _isRight
-                              ? (35.0 * (1.0 - curvedVal))
-                              : (-35.0 * (1.0 - curvedVal));
+                            // Slide direction adapts to corner orientation
+                            final slideOffsetX = _isRight
+                                ? (35.0 * (1.0 - curvedVal))
+                                : (-35.0 * (1.0 - curvedVal));
 
-                          return Opacity(
-                            opacity: curvedVal,
-                            child: Transform.translate(
-                              offset: Offset(slideOffsetX, 0),
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: MouseRegion(
-                          onEnter: (_) => setState(() => _hoveredKey = key),
-                          onExit: (_) => setState(() => _hoveredKey = null),
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            onTap: () {
-                              if (key == 'RF') {
-                                if (monitor.currentDut.isEmpty) {
-                                  _triggerToast(
-                                    'Không có thiết bị DUT để kiểm tra',
-                                  );
-                                  return;
+                            return Opacity(
+                              opacity: curvedVal,
+                              child: Transform.translate(
+                                offset: Offset(slideOffsetX, 0),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: MouseRegion(
+                            onEnter: (_) => setState(() => _hoveredKey = key),
+                            onExit: (_) => setState(() => _hoveredKey = null),
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: () {
+                                if (key == 'RF') {
+                                  if (monitor.currentDut.isEmpty) {
+                                    _triggerToast(
+                                      'Không có thiết bị DUT để kiểm tra',
+                                    );
+                                    return;
+                                  }
+                                  if (monitor.isRfTesting) {
+                                    _triggerToast(
+                                      'Đang trong quá trình kiểm tra sóng RF...',
+                                    );
+                                    return;
+                                  }
+                                  monitor.retestRf();
+                                  _triggerToast('Đang kiểm tra lại sóng RF...');
+                                } else {
+                                  _copyToClipboard(key, val);
                                 }
-                                if (monitor.isRfTesting) {
-                                  _triggerToast(
-                                    'Đang trong quá trình kiểm tra sóng RF...',
-                                  );
-                                  return;
-                                }
-                                monitor.retestRf();
-                                _triggerToast('Đang kiểm tra lại sóng RF...');
-                              } else {
-                                _copyToClipboard(key, val);
-                              }
-                            },
-                            // Visible information stays animated even when the
-                            // bubble is idle, unfocused or tucked at the edge.
-                            child: _DecorationMode(
-                              enabled:
-                                  monitor.deviceConnected &&
-                                  _isExpanded &&
-                                  (_powerCoordinator?.isVisible ?? false),
-                              child: _InfoCard(
-                                fieldKey: key,
-                                value: val,
-                                isDark: theme.isDark,
-                                isWarning: isWarning,
-                                modelName: modelName,
-                                isRfTesting: key == 'RF' && monitor.isRfTesting,
-                                onDiagnosticsTap: key == 'RF'
-                                    ? _openRfDiagnosticsDialog
-                                    : null,
+                              },
+                              // Visible information stays animated even when the
+                              // bubble is idle, unfocused or tucked at the edge.
+                              child: _DecorationMode(
+                                enabled:
+                                    monitor.deviceConnected &&
+                                    _isExpanded &&
+                                    (_powerCoordinator?.isVisible ?? false),
+                                child: _InfoCard(
+                                  fieldKey: key,
+                                  value: val,
+                                  isDark: theme.isDark,
+                                  isWarning: isWarning,
+                                  modelName: modelName,
+                                  isRfTesting:
+                                      key == 'RF' && monitor.isRfTesting,
+                                  onDiagnosticsTap: key == 'RF'
+                                      ? _openRfDiagnosticsDialog
+                                      : null,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
 
                 // 2.5. Docked Wire Station Badge (Tilted along Bézier lead-in curve)
                 AnimatedPositioned(
@@ -2593,6 +2747,56 @@ class InfoCard extends StatelessWidget {
                       value: TickerMode.valuesOf(context).enabled ? null : 0.65,
                       strokeWidth: 1.5,
                       color: Color(0xFF00C6FF),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ] else if (value.contains('LỖI GOLDEN')) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF97316).withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: const Color(0xFFF97316).withValues(alpha: 0.55),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Text(
+                      'GOLDEN ERR',
+                      style: TextStyle(
+                        fontSize: 8.0,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'JetBrains Mono',
+                        color: Color(0xFFF97316),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ] else if (value.contains('FAIL')) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.45),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Text(
+                      'FAIL',
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'JetBrains Mono',
+                        color: Color(0xFFEF4444),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),

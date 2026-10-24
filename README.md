@@ -1,15 +1,33 @@
-# 💬 JA DUT Info — Connected Information Effects & RF Spinner Motion Edition (v2.4.6)
+# 💬 JA DUT Info — Golden SRF Diagnostics, Smart DUT Validation & Session History Edition (v2.5.0)
 
 > **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Flutter Desktop Power Optimizer (0 FPS idle/inactive sleep)**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.4.6-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.5.0-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.4.6
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.5.0
+
+### 1. 🛡️ Chẩn Đoán Lỗi Thẻ SRF Trên Golden Panel & Cơ Chế Fail-Fast (`GOLDEN ERR`)
+- **Phân biệt lỗi Golden Panel vs lỗi DUT:** Kiểm tra ma trận khe cắm (`inspectGoldenSlot`) và đọc trực tiếp phiên bản firmware từ MCU qua Binder `transact 14` (`GetFullPicVer`) trên cả DUT và Golden Panel.
+- **Giải mã lỗi thẻ SRF Rev 1 không hỗ trợ phát sóng TX:** Phát hiện chính xác mã trả về `Parcel(0000000a)` (mã lỗi `10`) khi kích phát `transact 18`, cảnh báo rõ khi Golden Panel lắp nhầm thẻ SRF Rev 1 (`G16`/`D16`/`H16` chỉ hỗ trợ thu RX) và hướng dẫn thay bằng thẻ Rev 2 (`G26`/`D26`/`H26`).
+- **Fail-Fast (Dừng sớm ~1–2 giây):** Hủy ngay tiến trình chờ thu `SrfReceiver.jar` trên DUT khi phát hiện Golden không thể phát sóng, tiết kiệm 30 giây chờ timeout.
+- **Hiển thị song song `PG` & `SRF` trên cửa sổ chính:** Hàng thẻ `RF` hiển thị đồng thời kết quả PowerG và SRF khi thiết bị lắp cả 2 card, ưu tiên hiển thị huy hiệu cảnh báo **`GOLDEN ERR`** hoặc **`FAIL`**.
+
+### 2. ✨ Hộp Thoại Kính Mờ Trong Suốt & Tự Động Đóng Khi Rút Cáp
+- **Loại bỏ khung mờ hình chữ nhật bao quanh hộp thoại:** Các hộp thoại `RfDiagnosticsDialog`, `DutHistoryDialog`, `GlassUpdateDialog` và `OtaSettingsDialog` dùng `barrierColor: Colors.transparent` và ẩn các thẻ phía sau khi mở.
+- **Tự động đóng khi ngắt kết nối DUT:** Hộp thoại `RfDiagnosticsDialog` tự động đóng ngay khi thiết bị DUT bị rút cáp USB, đồng thời căn giữa huy hiệu **`TRẠM`** trên thanh tiêu đề.
+
+### 3. 🔍 Kiểm Tra Hợp Lệ Thông Minh (`DutValidator`) & Lịch Sử Phiên Đo (`DutHistoryDialog`)
+- **Kiểm tra hợp lệ tự động:** Xác thực thuật toán Luhn 15 số cho `IMEI`, kiểm tra chéo dòng máy IQ4/IQ5 giữa `PCASN`, `SYSSN`, `SYSPN` và cảnh báo ngay trên thẻ thông tin.
+- **Đo lại từng kênh & Lịch sử 30 DUT:** Hỗ trợ nút đo lại riêng cho kênh PowerG hoặc SRF, lưu lịch sử 30 DUT gần nhất trong phiên (`logs/dut_history.json`) và sao chép nhanh toàn bộ thông số.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.4.6 & Trước Đó
 
 ### 1. 🎨 Hiệu Ứng Thẻ Thông Tin Khi Kết Nối (Connected Information Effects)
 - **Duy trì hiệu ứng Frosted Glass:** Các hàng thẻ thông số DUT (`_InfoCard`) duy trì đầy đủ bộ lọc làm mờ (`BackdropFilter`) và đổ bóng khi thiết bị đang kết nối, thẻ mở rộng và cửa sổ đang hiển thị, không bị tắt nhầm khi quả cầu chathead ở trạng thái nghỉ/mất focus.

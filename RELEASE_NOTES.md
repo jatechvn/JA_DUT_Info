@@ -1,3 +1,27 @@
+# JA DUT Info — Release Notes v2.5.0
+
+Phiên bản **v2.5.0** bổ sung cơ chế **Chẩn đoán chuyên sâu lỗi thẻ SRF trên Golden Panel & dừng sớm (Fail-Fast)** (phân biệt rõ lỗi thẻ SRF Rev 1 `G16`/`D16`/`H16` không hỗ trợ phát TX, thiếu card hoặc lỗi MCU trên Golden so với lỗi thu sóng của DUT), **tinh chỉnh hộp thoại kính mờ không viền nền & tự động đóng khi rút cáp**, cùng bộ công cụ **kiểm tra hợp lệ phần cứng thông minh (`DutValidator`) và lịch sử DUT trong phiên (`DutHistoryDialog`)**.
+
+---
+
+## 🌟 Điểm Mới Nổi Bật trên v2.5.0
+
+### 1. 🛡️ Chẩn Đoán Lỗi Thẻ SRF Trên Golden Panel & Fail-Fast (`GOLDEN ERR`)
+- **Phân biệt chính xác lỗi Golden vs lỗi DUT:** Kiểm tra ma trận slot (`inspectGoldenSlot`) và đọc trực tiếp firmware từ MCU qua Binder `transact 14` (`GetFullPicVer`) trên cả DUT và Golden Panel.
+- **Phát hiện thẻ SRF Rev 1 không hỗ trợ phát sóng TX:** Giải mã phản hồi `Parcel(0000000a)` (mã lỗi `10`) khi kích phát `transact 18`, cảnh báo rõ khi Golden Panel lắp nhầm thẻ SRF đời cũ (`G16`/`D16`/`H16` chỉ thu RX) và hướng dẫn thay bằng thẻ Rev 2 (`G26`/`D26`/`H26`).
+- **Dừng sớm tức thời (Fail-Fast ~1–2s):** Hủy ngay tiến trình chờ thu `SrfReceiver.jar` trên DUT khi Golden báo lỗi phát sóng, không còn phải chờ hết 30 giây timeout.
+- **Hiển thị trực quan cả 2 kênh `PG` & `SRF`:** Hàng thẻ `RF` trên cửa sổ chính hiển thị đồng thời kết quả PowerG và SRF, ưu tiên hiển thị huy hiệu **`GOLDEN ERR`** hoặc **`FAIL`** khi có kênh bất thường.
+
+### 2. ✨ Hộp Thoại Chẩn Đoán Sóng Trong Suốt & Tự Đóng Khi Ngắt Kết Nối
+- **Loại bỏ khung mờ bao quanh hộp thoại:** Toàn bộ các hộp thoại (`RfDiagnosticsDialog`, `DutHistoryDialog`, `GlassUpdateDialog`, `OtaSettingsDialog`) sử dụng nền trong suốt hoàn toàn (`barrierColor: Colors.transparent`) và tự động ẩn các thẻ thông số phía sau khi mở.
+- **Tự động đóng khi rút cáp DUT:** Hộp thoại `RfDiagnosticsDialog` tự động đóng ngay lập tức khi thiết bị DUT bị ngắt kết nối khỏi máy tính, đồng thời căn giữa huy hiệu **`TRẠM`** hài hòa trên thanh tiêu đề.
+
+### 3. 🔍 Kiểm Tra Hợp Lệ Thông Minh (`DutValidator`) & Lịch Sử Phiên Đo (`DutHistoryDialog`)
+- **Cảnh báo sai lệch phần cứng tự động:** Kiểm tra chuẩn Luhn 15 số cho `IMEI` và đối chiếu chéo dòng máy IQ4/IQ5 giữa `PCASN`, `SYSSN` và `SYSPN`.
+- **Đo lại từng kênh RF & Lịch sử 30 DUT gần nhất:** Hỗ trợ bấm đo lại riêng kênh PowerG hoặc SRF trong bảng chẩn đoán, lưu lịch sử 30 thiết bị trong phiên làm việc và sao chép nhanh báo cáo tổng hợp.
+
+---
+
 # JA DUT Info — Release Notes v2.4.6
 
 Phiên bản **v2.4.6** tinh chỉnh hiển thị các thẻ thông tin (`InfoCard`) khi thiết bị được kết nối, đảm bảo giữ nguyên hiệu ứng kính mờ và đổ bóng sắc nét, đồng thời duy trì chuyển động quay liên tục cho biểu tượng kiểm tra sóng RF (`CircularProgressIndicator`) trong suốt thời gian hiển thị.

@@ -58,6 +58,38 @@ void main() {
       srfParcelSuccess("Result: Parcel(ffffffff 00000000 '........')", 0),
       isFalse,
     );
+    expect(srfParcelIntCode("Result: Parcel(00000000 '....')"), 0);
+    expect(srfParcelIntCode("Result: Parcel(0000000a '....')"), 10);
+    expect(srfParcelIntCode('error'), isNull);
+
+    expect(
+      srfParseParcelString16(
+        "Result: Parcel(\n"
+        "  0x00000000: 00000000 0000000a 00300031 0033002e '........1.0...3.'\n"
+        "  0x00000010: 0035002e 0047002d 00360031 00000000 '..5.-.G.1.6.....')\n",
+      ),
+      '10.3.5-G16',
+    );
+    expect(
+      srfParseParcelString16(
+        "Result: Parcel(00000000 0000000a 00310031 0032002e 0030002e 0047002d 00360032 00000000 '........1.1...2...0.-.G.2.6.....')",
+      ),
+      '11.2.0-G26',
+    );
+    expect(
+      srfParseParcelString16(
+        "Result: Parcel(\r\n"
+        "  0x00000000: 0000000a 00310031 0032002e 0030002e '....1.1...2...0.'\r\n"
+        "  0x00000010: 0047002d 00360032 00000000          '-.G.2.6.....    ')\r\n",
+      ),
+      '11.2.0-G26',
+    );
+    expect(isUnsupportedGoldenRev1Firmware('10.3.5-G16'), isTrue);
+    expect(isUnsupportedGoldenRev1Firmware('10.3.5-D16'), isTrue);
+    expect(isUnsupportedGoldenRev1Firmware('10.3.5-H16'), isTrue);
+    expect(isUnsupportedGoldenRev1Firmware('11.2.0-G26'), isFalse);
+    expect(isUnsupportedGoldenRev1Firmware('11.2.1-D26'), isFalse);
+    expect(isUnsupportedGoldenRev1Firmware('11.2.2-H26'), isFalse);
   });
 
   final sdkCache = File(

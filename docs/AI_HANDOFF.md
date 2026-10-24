@@ -413,3 +413,20 @@ enabled on blur/at edge, spinner controller and marquee advance while visible,
 and both freeze on hide; bubble effects remain lightweight. Relevant12 tests
 passed, analyzer and diff check clean. Evidence: build/rf-information-effects-final.log.
 No build, native Windows visual/hardware verification or dist changes performed.
+
+# Multi-package station & FA upgrades (Phase 1-4) — 2026-10-15
+
+Implemented all four approved upgrade packages:
+1. Parallelized `PCASN` and `getprop` (`qolsys.sys.config`, `ro.build.product`, `ro.product.device`) reads in `AdbMonitor._readDut` and reduced `splashTimer` from 3000ms to 250ms, plus added `reloadCurrentDut()`, `formatFullDutReport()`, and `openLogsDirectory()`.
+2. Created `DutValidator` (`lib/modules/services/dut_validator.dart`) for 15-digit IMEI Luhn checksum validation, cross-model IQ4/IQ5 mismatch detection (`PCASN` vs `SYSSN`/`SYSPN`), and integrated warning flags into `MainWindow` InfoCards.
+3. Upgraded `RfDiagnosticsDialog` with a header Golden Panel status chip, independent per-channel retest actions (`retestPowerGOnly()`, `retestSrfOnly()`), and visual signal meter bars.
+4. Added `DutHistoryService` (`lib/modules/services/dut_history_service.dart`) and `DutHistoryDialog` (`lib/modules/ui/dut_history_dialog.dart`) retaining up to 30 recent DUT snapshots across unplugs (`logs/dut_history.json`).
+5. Verification: `dart format lib test` clean, `flutter analyze` 0 issues, `flutter test` 91/91 passed (including live connected IQ4 `bc4cd33a` & Golden Panel `2b69e02`).
+
+# Release v2.5.0: Golden SRF card diagnostics, fail-fast & dialog polish — 2026-10-24
+
+Implemented Golden Panel SRF card diagnostics and UI refinements:
+1. Added `SrfStatus.goldenError` and `goldenFirmware` to `SrfResult` (`lib/modules/services/srf_service.dart`), `inspectGoldenSlot`, `readLiveSlotFirmware` (`transact 14` UTF-16 parser via `srfParseParcelString16` supporting both direct length at word 0 and status+length layouts), and `triggerGoldenTransmitDetailed` decoding `Parcel(0000000a)` (Rev 1 `G16`/`D16`/`H16` RX-only card on Golden Panel) vs missing card/dead MCU.
+2. Added fail-fast termination in `runSrfReceiverProcess` (`lib/modules/services/srf_receiver.dart`) when `transmit()` returns `false` so `SrfReceiver.jar` terminates immediately instead of waiting 30s.
+3. Added `formatMainWindowRfSummary` and `GOLDEN ERR`/`FAIL` badge surfacing in `MainWindow` (`lib/modules/ui/main_window.dart`), removed the dim barrier box (`barrierColor: Colors.transparent`) across all modal dialogs while hiding background cards/wires when `_isDialogOpen` is true, centered the `TRẠM` badge in `RfDiagnosticsDialog`, and added automatic dialog dismissal when the DUT disconnects.
+4. Verified with `flutter analyze` (0 issues), full offline test suite, and live hardware test on IQ5 DUT `883a4506` + Golden Panel `bbb68d23` (`goldenFirmware: "11.2.0-G26"`).

@@ -5,6 +5,28 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 ---
 
 
+## [2.5.0] - 2026-10-24 — *Golden SRF Diagnostics, Smart DUT Validation & Session History Edition*
+
+### 🚀 Nâng cấp & Tính năng mới (Enhancements & New Features)
+- **Chẩn Đoán Lỗi Thẻ SRF Trên Golden Panel & Cơ Chế Fail-Fast (`SrfService` & `SrfReceiver`):**
+  - **Phát hiện phần cứng thẻ SRF trên Golden (`SrfStatus.goldenError`):** Kiểm tra ma trận khe cắm (`inspectGoldenSlot`) và đọc trực tiếp phiên bản firmware từ MCU qua Binder `transact 14` (`readLiveSlotFirmware` giải mã UTF-16 `srfParseParcelString16`) trước và trong khi phát sóng.
+  - **Giải mã chi tiết mã phản hồi `transact 18` (`triggerGoldenTransmitDetailed`):** Phân biệt rõ trường hợp thẻ SRF của Golden là bản **Rev 1 (`G16` / `D16` / `H16`)** chỉ hỗ trợ thu (RX-only, trả về `Parcel(0000000a)` / mã lỗi `10` khi gọi lệnh phát TX `transact 18`) so với bản **Rev 2 (`G26` / `D26` / `H26`)** có bộ phát TX (`Parcel(00000000)`), cũng như trường hợp Golden thiếu card SRF hoặc chết MCU.
+  - **Cơ chế dừng sớm (Fail-Fast Termination):** Trong `runSrfReceiverProcess`, khi callback `transmit()` trả về `false` (Golden không thể phát sóng), tiến trình thu `SrfReceiver.jar` trên DUT được hủy ngay lập tức (trong ~1–2 giây) thay vì chờ hết 30 giây timeout.
+  - **Hiển thị trực quan trên giao diện:** Thẻ `RF` trên cửa sổ chính hiển thị đồng thời cả `PG` và `SRF` khi thiết bị có cả 2 card (`formatMainWindowRfSummary`), ưu tiên nổi bật huy hiệu cảnh báo **`GOLDEN ERR`** hoặc **`FAIL`**, và hiển thị phiên bản FW của cả DUT lẫn Golden kèm hướng dẫn khắc phục trong `RfDiagnosticsDialog`.
+- **Tinh Chỉnh Hộp Thoại Kính Mờ & Tự Động Đóng Khi Rút Cáp (`RfDiagnosticsDialog` & `MainWindow`):**
+  - Loại bỏ khung nền mờ hình chữ nhật (`barrierColor: Colors.transparent`) bao quanh các hộp thoại `RfDiagnosticsDialog`, `DutHistoryDialog`, `GlassUpdateDialog` và `OtaSettingsDialog`, kết hợp ẩn các thẻ thông tin/dây nối phía sau khi hộp thoại đang mở để giữ giao diện trong suốt liền mạch.
+  - Căn giữa chính xác huy hiệu **`TRẠM`** nằm giữa tiêu đề `DUT PANEL INFO` và nút chuyển đổi giao diện trong `RfDiagnosticsDialog`.
+  - Tự động đóng hộp thoại `RfDiagnosticsDialog` ngay khi thiết bị DUT bị ngắt kết nối USB (`!monitor.deviceConnected || monitor.currentDut.isEmpty`).
+- **Kiểm Tra Hợp Lệ Phần Cứng Thông Minh (`DutValidator`) & Tiện Ích Trạm Đo Kiểm:**
+  - Tích hợp `lib/modules/services/dut_validator.dart` tự động kiểm tra thuật toán Luhn 15 chữ số cho `IMEI`, đối chiếu chéo dòng máy IQ4/IQ5 giữa `PCASN`, `SYSSN` và `SYSPN`, và cảnh báo trực tiếp trên hàng thẻ `InfoCard` khi phát hiện sai lệch.
+  - Bổ sung nút đo lại độc lập cho từng kênh **PowerG** (`retestPowerGOnly`) và **SRF** (`retestSrfOnly`) cùng thanh đo cường độ tín hiệu trực quan.
+  - Bổ sung **Lịch sử DUT trong phiên** (`DutHistoryService` & `DutHistoryDialog` lưu trữ tới 30 thiết bị gần nhất tại `logs/dut_history.json`), sao chép toàn bộ báo cáo 1-click (`formatFullDutReport`), đọc lại toàn bộ thông số (`reloadCurrentDut`) và ghi log xoay vòng tự động (`lib/modules/logger_config.dart`).
+
+### 📦 Phát hành
+- Đồng bộ version 2.5.0+15 trong pubspec.yaml, constants.dart, ABOUT.txt, CHANGELOG.md, RELEASE_NOTES.md, README.md, USERGUIDE.md, docs/AI_HANDOFF.md.
+
+---
+
 ## [2.4.6] - 2026-10-03 — *Connected Information Effects & RF Spinner Motion Edition*
 
 ### 🚀 Nâng cấp & Sửa lỗi (Enhancements & UI Polish)

@@ -21,6 +21,58 @@ bool srfParcelSuccess(String output, int value) => RegExp(
   '^Result: Parcel\\(\\s*${value.toRadixString(16).padLeft(8, '0')}\\s+[^\\r\\n]*\\)\\s*\$',
 ).hasMatch(output.trim());
 
+/// Extracts the first 32-bit integer status code from a binder Parcel reply
+/// (e.g., `Result: Parcel(0000000a '....')` -> `10`).
+int? srfParcelIntCode(String output) {
+  final match = RegExp(
+    r'^Result:\s*Parcel\(\s*([0-9a-fA-F]{8})\b',
+  ).firstMatch(output.trim());
+  if (match == null) return null;
+  return int.tryParse(match.group(1)!, radix: 16);
+}
+
+/// Decodes a UTF-16 String16 reply from `service call srfservice_ttyHSL* 14`
+/// (`GetFullPicVer`), e.g. `10.3.5-G16` or `11.2.0-G26`.
+String? srfParseParcelString16(String output) {
+  final cleaned = output
+      .replaceAll(RegExp(r"'[^']*'"), '')
+      .replaceAll(RegExp(r'0x[0-9a-fA-F]+:'), '');
+  final words = RegExp(
+    r'\b[0-9a-fA-F]{8}\b',
+  ).allMatches(cleaned).map((m) => int.parse(m.group(0)!, radix: 16)).toList();
+  if (words.isEmpty) return null;
+  int len;
+  int startIdx;
+  if (words[0] == 0 && words.length >= 2 && words[1] > 0 && words[1] <= 128) {
+    len = words[1];
+    startIdx = 2;
+  } else if (words[0] > 0 && words[0] <= 128) {
+    len = words[0];
+    startIdx = 1;
+  } else {
+    return null;
+  }
+  final codeUnits = <int>[];
+  for (var i = startIdx; i < words.length && codeUnits.length < len; i++) {
+    final word = words[i];
+    final c1 = word & 0xFFFF;
+    if (c1 != 0) codeUnits.add(c1);
+    if (codeUnits.length >= len) break;
+    final c2 = (word >> 16) & 0xFFFF;
+    if (c2 != 0) codeUnits.add(c2);
+  }
+  if (codeUnits.isEmpty) return null;
+  return String.fromCharCodes(codeUnits).trim();
+}
+
+/// Returns true if an SRF card firmware string is an older Rev 1 daughter card
+/// (e.g. `10.3.5-G16`, `x.x.x-D16`, `x.x.x-H16`) which does not support
+/// `TRANSMIT_RAW` (Transaction 18) on a Golden Panel.
+bool isUnsupportedGoldenRev1Firmware(String fw) {
+  final upper = fw.trim().toUpperCase();
+  return RegExp(r'-[GDH]1\d*\b').hasMatch(upper);
+}
+
 bool srfReceivePassed(ProcessResult result, String airId) {
   final lines = result.stdout.toString().split('\n').map((s) => s.trim());
   return result.exitCode == 0 &&
@@ -86,6 +138,16 @@ Future<SrfReceiveResult> runSrfReceiverProcess(
     }
     scope?.check();
     transmitted = await transmit().timeout(const Duration(seconds: 8));
+    if (!transmitted) {
+      await process.stdin.close().catchError((_) {});
+      try {
+        await completion.timeout(const Duration(seconds: 2));
+      } on TimeoutException {
+        process.kill();
+        await completion;
+      }
+      return SrfReceiveResult(false, 'TX_ACK=false\n${output.toString()}');
+    }
     final values = await completion.timeout(completionTimeout);
     final result = ProcessResult(
       process.pid,

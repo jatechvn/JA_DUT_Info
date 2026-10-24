@@ -46,6 +46,25 @@ Future<void> initLogger() async {
   logger.info('Logger initialized.');
 }
 
+String get logDirectoryPath => (_logDir ?? Directory('logs')).absolute.path;
+
+Future<bool> openLogsDirectory() async {
+  try {
+    final dir = _logDir ?? Directory('logs');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    if (Platform.isWindows) {
+      await Process.start('explorer.exe', [dir.absolute.path]);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    print('Failed to open log directory: $e');
+    return false;
+  }
+}
+
 void setDutLogSession(String? syssn) {
   if (_logDir == null) return;
   try {
