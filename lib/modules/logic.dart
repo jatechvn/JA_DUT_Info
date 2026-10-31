@@ -103,21 +103,45 @@ class AdbMonitor extends ChangeNotifier {
     }
     if (cUpper.startsWith('IQP5') ||
         cUpper.startsWith('IQH5') ||
+        cUpper.startsWith('IQR5') ||
         cUpper.startsWith('IQ5')) {
       return true;
     }
     if (pnUpper.startsWith('IQP5') ||
         pnUpper.startsWith('IQH5') ||
+        pnUpper.startsWith('IQR5') ||
         pnUpper.startsWith('IQ5')) {
       return true;
     }
-    if (snUpper.startsWith('QP5') || snUpper.startsWith('QH5')) {
+    if (snUpper.startsWith('QP5') ||
+        snUpper.startsWith('QH5') ||
+        snUpper.startsWith('QR5')) {
       return true;
     }
     if (bLower.contains('tucson') || dLower.contains('tucson')) {
       return true;
     }
     return false;
+  }
+
+  /// Validates whether a raw baseband property string is a meaningful module/CPU
+  /// version rather than a generic Qualcomm platform placeholder like "msm".
+  static bool isValidBaseband(String raw) {
+    final clean = raw.replaceAll('[', '').replaceAll(']', '').trim();
+    if (clean.isEmpty) return false;
+    final lower = clean.toLowerCase();
+    if (lower.contains('error') || lower.contains('not found')) return false;
+    const invalidTokens = {
+      'msm',
+      'apq',
+      'sdm',
+      'qcom',
+      'unknown',
+      'n/a',
+      'null',
+      'none',
+    };
+    return !invalidTokens.contains(lower);
   }
 
   /// Robust device classification for IQ4
@@ -146,16 +170,21 @@ class AdbMonitor extends ChangeNotifier {
     }
     if (cUpper.startsWith('IQP4') ||
         cUpper.startsWith('IQH4') ||
+        cUpper.startsWith('IQR4') ||
+        cUpper.startsWith('IQRP') ||
         cUpper.startsWith('IQ4')) {
       return true;
     }
     if (pnUpper.startsWith('IQP4') ||
         pnUpper.startsWith('IQH4') ||
+        pnUpper.startsWith('IQR4') ||
+        pnUpper.startsWith('IQRP') ||
         pnUpper.startsWith('IQ4')) {
       return true;
     }
     if (snUpper.startsWith('QP4') ||
         snUpper.startsWith('QH4') ||
+        snUpper.startsWith('QR4') ||
         snUpper.startsWith('QPH')) {
       return true;
     }
@@ -489,7 +518,7 @@ class AdbMonitor extends ChangeNotifier {
       }
     }());
 
-    // Pipeline task for CPU (gsm.version.baseband) with multi-retry up to 10 attempts and fallbacks
+    // Pipeline task for CPU (gsm.version.baseband / persist.version.baseband) with multi-retry up to 10 attempts and fallbacks
     tasks.add(() async {
       var cpuVal = '';
       for (var attempt = 1; attempt <= 10; attempt++) {
@@ -504,9 +533,7 @@ class AdbMonitor extends ChangeNotifier {
             'gsm.version.baseband',
           ]);
           val = val.replaceAll('[', '').replaceAll(']', '').trim();
-          if (val.isNotEmpty &&
-              !val.toLowerCase().contains('error') &&
-              !val.toLowerCase().contains('not found')) {
+          if (isValidBaseband(val)) {
             cpuVal = val;
             break;
           }
@@ -520,13 +547,28 @@ class AdbMonitor extends ChangeNotifier {
             'gsm.version.baseband1',
           ]);
           final cleanBb1 = bb1.replaceAll('[', '').replaceAll(']', '').trim();
-          if (cleanBb1.isNotEmpty &&
-              !cleanBb1.toLowerCase().contains('error') &&
-              !cleanBb1.toLowerCase().contains('not found')) {
+          if (isValidBaseband(cleanBb1)) {
             cpuVal = cleanBb1;
             break;
           }
-          // Tertiary fallback: ro.boot.baseband / ro.baseband
+          // Tertiary fallback: persist.version.baseband (e.g. BP04BP10ABM01(SC200EWFDAR14A01) on IQ5/IQR5)
+          final bbPersist = await _command([
+            'adb',
+            '-s',
+            serial,
+            'shell',
+            'getprop',
+            'persist.version.baseband',
+          ]);
+          final cleanPersist = bbPersist
+              .replaceAll('[', '')
+              .replaceAll(']', '')
+              .trim();
+          if (isValidBaseband(cleanPersist)) {
+            cpuVal = cleanPersist;
+            break;
+          }
+          // Quaternary fallback: ro.boot.baseband (filtered against generic "msm")
           if (attempt >= 5) {
             final bbRo = await _command([
               'adb',
@@ -537,9 +579,7 @@ class AdbMonitor extends ChangeNotifier {
               'ro.boot.baseband',
             ]);
             final cleanRo = bbRo.replaceAll('[', '').replaceAll(']', '').trim();
-            if (cleanRo.isNotEmpty &&
-                !cleanRo.toLowerCase().contains('error') &&
-                !cleanRo.toLowerCase().contains('not found')) {
+            if (isValidBaseband(cleanRo)) {
               cpuVal = cleanRo;
               break;
             }

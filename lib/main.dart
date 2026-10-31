@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'modules/constants.dart';
 import 'modules/logger_config.dart';
 import 'modules/logic.dart';
+import 'modules/services/auto_sn_service.dart';
 import 'modules/services/ota_update_service.dart';
 import 'modules/services/power_coordinator.dart';
 import 'modules/ui/styles.dart';
@@ -16,11 +17,23 @@ void main() async {
   // Initialize logger
   await initLogger();
 
+  final adbMonitor = AdbMonitor();
+  final autoSnService = AutoSnService(
+    knownGoldenSerialGetter: () => adbMonitor.goldenPanelSerial,
+    onDutReady: (dutSerial) {
+      if (adbMonitor.currentDut != dutSerial &&
+          adbMonitor.allDuts.contains(dutSerial)) {
+        adbMonitor.selectDut(dutSerial);
+      }
+    },
+  );
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => AdbMonitor()),
+        ChangeNotifierProvider.value(value: adbMonitor),
+        ChangeNotifierProvider.value(value: autoSnService),
         ChangeNotifierProvider.value(value: OtaUpdateService()),
         ChangeNotifierProvider(create: (_) => PowerCoordinator()),
       ],

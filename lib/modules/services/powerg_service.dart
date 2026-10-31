@@ -198,7 +198,7 @@ class PowerGService {
     final matrixProtocol = protocolFromMatrix(matrix);
     if (matrixProtocol.isNotEmpty) return matrixProtocol;
 
-    // 7. SYSPN from testeepapi (e.g. IQP4004 is 868MHz, IQP4001 is 915MHz)
+    // 7. SYSPN / qolsys.sys.config from DUT (e.g. IQP4004 / IQR5EU0 is 868MHz, IQP4001 / IQR5NA0 is 915MHz)
     final syspn = (await runCmd([
       'adb',
       '-s',
@@ -208,16 +208,27 @@ class PowerGService {
       'r',
       'syspn',
     ])).trim().toUpperCase();
-    if (syspn.contains('4004') ||
-        syspn.contains('4008') ||
-        syspn.contains('4009') ||
-        syspn.contains('868')) {
+    final sysCfg = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'qolsys.sys.config',
+    ])).trim().toUpperCase();
+    final combinedId = '$syspn $sysCfg';
+    if (combinedId.contains('4004') ||
+        combinedId.contains('4008') ||
+        combinedId.contains('4009') ||
+        combinedId.contains('868') ||
+        RegExp(r'IQR[45P]EU').hasMatch(combinedId)) {
       return '9'; // 868 MHz
     }
-    if (syspn.contains('4001') ||
-        syspn.contains('4002') ||
-        syspn.contains('4003') ||
-        syspn.contains('915')) {
+    if (combinedId.contains('4001') ||
+        combinedId.contains('4002') ||
+        combinedId.contains('4003') ||
+        combinedId.contains('915') ||
+        RegExp(r'IQR[45P](?:NA|US)').hasMatch(combinedId)) {
       return '8'; // 915 MHz
     }
 
@@ -476,7 +487,7 @@ class PowerGService {
       );
     }
 
-    // Detect if DUT is IQ5
+    // Detect if DUT is IQ5 / IQ Remote 5
     final pcasnCheck = (await runCmd([
       'adb',
       '-s',
@@ -494,17 +505,56 @@ class PowerGService {
       'getprop',
       'qolsys.sys.config',
     ])).trim();
+    final syspnCheck = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'testeepapi',
+      'r',
+      'syspn',
+    ])).trim();
+    final isRemoteProp = (await runCmd([
+      'adb',
+      '-s',
+      dutSerial,
+      'shell',
+      'getprop',
+      'persist.qolsys.isremote',
+    ])).trim();
+
+    final pUpper = pcasnCheck.toUpperCase();
+    final cUpper = sysConfig.toUpperCase();
+    final pnUpper = syspnCheck.toUpperCase();
+
     final isIQ5 =
-        pcasnCheck.toUpperCase().startsWith('QB95') ||
-        pcasnCheck.toUpperCase().startsWith('QB85') ||
-        pcasnCheck.toUpperCase().startsWith('QC95') ||
-        sysConfig.toUpperCase().startsWith('IQP5') ||
-        sysConfig.toUpperCase().startsWith('IQH5') ||
-        sysConfig.toUpperCase().startsWith('IQ5');
+        pUpper.startsWith('QB95') ||
+        pUpper.startsWith('QB85') ||
+        pUpper.startsWith('QC95') ||
+        cUpper.startsWith('IQP5') ||
+        cUpper.startsWith('IQH5') ||
+        cUpper.startsWith('IQR5') ||
+        cUpper.startsWith('IQ5') ||
+        pnUpper.startsWith('IQP5') ||
+        pnUpper.startsWith('IQH5') ||
+        pnUpper.startsWith('IQR5') ||
+        pnUpper.startsWith('IQ5');
+
+    final isIqRemote =
+        pUpper.startsWith('QB95R') ||
+        pUpper.startsWith('QB85R') ||
+        pUpper.startsWith('QB94R') ||
+        cUpper.startsWith('IQR5') ||
+        cUpper.startsWith('IQR4') ||
+        cUpper.startsWith('IQRP') ||
+        pnUpper.startsWith('IQR5') ||
+        pnUpper.startsWith('IQR4') ||
+        pnUpper.startsWith('IQRP') ||
+        isRemoteProp == '1';
 
     if (isIQ5) {
       logger.info(
-        '[PowerGService] Detected IQ5 platform on $dutSerial. Running hardware bootloader/MCU diagnostic.',
+        '[PowerGService] Detected IQ5 platform (isIqRemote=$isIqRemote) on $dutSerial. Running hardware bootloader/MCU diagnostic.',
       );
       // Read slot
       var slot = (await runCmd([
@@ -522,32 +572,54 @@ class PowerGService {
       protocol = await _resolveProtocol(dutSerial, currentProtocol: protocol);
       var freqStr = mapProtocolToFrequency(protocol);
 
-      // Run powergv4bootload -s $slot -c 1
-      final bootloadOut = await runCmd([
-        'adb',
-        '-s',
-        dutSerial,
-        'shell',
-        'powergv4bootload',
-        '-s',
-        slot,
-        '-c',
-        '1',
-      ]);
+      Future<String> runBootloadCheck({required bool useNodeProtocol}) {
+        final args = <String>[
+          'adb',
+          '-s',
+          dutSerial,
+          'shell',
+          'powergv4bootload',
+          '-s',
+          slot,
+          if (useNodeProtocol) ...['-u', '6'],
+          '-c',
+          '1',
+        ];
+        return runCmd(args, timeout: const Duration(seconds: 35));
+      }
 
-      // Check success across Library v3.0 and v3.15+
-      final hasHello =
-          bootloadOut.contains('PGHOST Received hello!') ||
-          bootloadOut.contains('Got Hello Message') ||
-          bootloadOut.contains('Hello received');
-      final hasVersion =
-          bootloadOut.contains('version:') ||
-          bootloadOut.contains('Found version:') ||
-          bootloadOut.contains('Updated version:');
-      final isSuccess =
-          bootloadOut.contains('Operation Result: SUCCESS') ||
-          bootloadOut.contains('Return SUCCESS') ||
-          (hasHello && hasVersion);
+      bool checkBootloadSuccess(String out) {
+        final hasHello =
+            out.contains('PGHOST Received hello!') ||
+            out.contains('PGNODE Received hello!') ||
+            out.contains('Got Hello Message') ||
+            out.contains('Hello received');
+        final hasVersion =
+            out.contains('version:') ||
+            out.contains('Found version:') ||
+            out.contains('Updated version:');
+        return out.contains('Operation Result: SUCCESS') ||
+            out.contains('Return SUCCESS') ||
+            (hasHello && hasVersion);
+      }
+
+      // On IQ Remote 5 (e.g. IQR5EU0), the PowerG card runs Node firmware (-u 6).
+      // On standard IQ5 Panel, the PowerG card runs Host firmware (default -u 0).
+      var bootloadOut = await runBootloadCheck(useNodeProtocol: isIqRemote);
+      var isSuccess = checkBootloadSuccess(bootloadOut);
+
+      // Automatic protocol fallback if the card responds with Node frames (5A 0F BE) or initial mode failed
+      if (!isSuccess) {
+        final shouldRetryOpposite =
+            isIqRemote || bootloadOut.contains('5A 0F BE');
+        if (shouldRetryOpposite) {
+          logger.info(
+            '[PowerGService] Retrying powergv4bootload on $dutSerial with useNodeProtocol=${!isIqRemote}',
+          );
+          bootloadOut = await runBootloadCheck(useNodeProtocol: !isIqRemote);
+          isSuccess = checkBootloadSuccess(bootloadOut);
+        }
+      }
 
       if (isSuccess) {
         // Extract RF fw if still empty
@@ -579,7 +651,7 @@ class PowerGService {
           }
         }
         logger.info(
-          '[PowerGService] IQ5 PowerG V4 MCU & Radio check PASS on $dutSerial',
+          '[PowerGService] IQ5 PowerG V4 MCU & Radio check PASS on $dutSerial (fw=$fw, protocol=$protocol)',
         );
         return iq5McuResult(fw: fw, protocol: protocol, details: bootloadOut);
       } else {

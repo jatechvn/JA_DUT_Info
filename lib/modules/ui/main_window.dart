@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../logger_config.dart';
 import '../logic.dart';
+import '../services/auto_sn_service.dart';
 import '../services/autostart_service.dart';
 import '../services/dut_validator.dart';
 import '../services/ota_update_service.dart';
@@ -90,6 +91,9 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   late final AnimationController _stationAnimController;
 
   PowerCoordinator? _powerCoordinator;
+  AutoSnService? _autoSnService;
+  String _lastAutoSnStatus = '';
+  int _toastSeq = 0;
   bool _pulseWasForward = true;
   bool _stationWasForward = true;
   bool _effectsAllowed = false;
@@ -163,12 +167,13 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   }
 
   void _triggerToast(String msg) {
+    final seq = ++_toastSeq;
     setState(() {
       _toastMessage = msg;
       _showToast = true;
     });
     Future.delayed(const Duration(milliseconds: 1800), () {
-      if (mounted) {
+      if (mounted && seq == _toastSeq) {
         setState(() => _showToast = false);
       }
     });
@@ -418,6 +423,8 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
     final theme = Provider.of<ThemeProvider>(context, listen: false);
     final monitor = Provider.of<AdbMonitor>(context, listen: false);
     final ota = Provider.of<OtaUpdateService>(context, listen: false);
+    final autoSn = _autoSnService;
+    final autoSnEnabled = autoSn?.enabled ?? true;
 
     final position = RelativeRect.fromRect(
       details.globalPosition & const Size(40, 40),
@@ -773,6 +780,77 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
         ),
         const PopupMenuDivider(height: 1),
         PopupMenuItem<String>(
+          value: 'toggle_autosn',
+          height: 36,
+          child: Row(
+            children: [
+              Icon(
+                autoSnEnabled
+                    ? Icons.check_box_rounded
+                    : Icons.check_box_outline_blank_rounded,
+                size: 16,
+                color: autoSnEnabled
+                    ? const Color(0xFF10B981)
+                    : (theme.isDark ? Colors.white38 : Colors.black38),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Tự động SN/PN (javaw.exe)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'open_autosn_config',
+          height: 34,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.edit_note_rounded,
+                size: 16,
+                color: Color(0xFFF59E0B),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Cấu hình Form SN/PN (JSON)...',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Outfit',
+                  color: theme.isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (autoSn?.isSessionRunning == true)
+          PopupMenuItem<String>(
+            value: 'cancel_autosn',
+            height: 34,
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.stop_circle_outlined,
+                  size: 16,
+                  color: Color(0xFFEF4444),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Hủy phiên chờ AutoSN (Esc)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        PopupMenuItem<String>(
           value: 'toggle_autostart',
           height: 36,
           child: Row(
@@ -861,6 +939,33 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
             );
           }
         });
+      } else if (value == 'toggle_autosn') {
+        if (autoSn != null) {
+          final target = !autoSn.enabled;
+          autoSn.setEnabled(target).then((_) {
+            if (mounted) {
+              _triggerToast(
+                target
+                    ? 'Đã bật Tự động SN/PN (javaw.exe)'
+                    : 'Đã tắt Tự động SN/PN (javaw.exe)',
+              );
+            }
+          });
+        }
+      } else if (value == 'open_autosn_config') {
+        if (autoSn != null) {
+          autoSn.openConfigFileInEditor().then((ok) {
+            if (mounted) {
+              _triggerToast(
+                ok
+                    ? 'Đã mở auto_sn_config.json (Lưu Ctrl+S sẽ áp dụng ngay)'
+                    : 'Không thể mở auto_sn_config.json',
+              );
+            }
+          });
+        }
+      } else if (value == 'cancel_autosn') {
+        autoSn?.cancelActiveSession(reason: 'Đã hủy phiên chờ AutoSN');
       } else if (value == 'toggle_autostart') {
         final newTarget = !_autostartEnabled;
         AutostartService.setAutostartEnabled(newTarget).then((ok) {
@@ -961,6 +1066,25 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
       _powerCoordinator?.addListener(_onPowerStateChanged);
       _syncAnimationState(power.isUiAnimationEnabled);
     }
+    final autoSn = Provider.of<AutoSnService?>(context, listen: false);
+    if (_autoSnService != autoSn) {
+      _autoSnService?.removeListener(_onAutoSnChanged);
+      _autoSnService = autoSn;
+      _autoSnService?.addListener(_onAutoSnChanged);
+    }
+  }
+
+  void _onAutoSnChanged() {
+    if (!mounted || _autoSnService == null) return;
+    final st = _autoSnService!.sessionStatus;
+    if (st.isNotEmpty && st != _lastAutoSnStatus) {
+      _lastAutoSnStatus = st;
+      _powerCoordinator?.recordUserActivity();
+      _triggerToast(st);
+    } else if (st.isEmpty) {
+      _lastAutoSnStatus = '';
+    }
+    setState(() {});
   }
 
   void _onPowerStateChanged() {
@@ -1049,6 +1173,8 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _autoSnService?.removeListener(_onAutoSnChanged);
+    _autoSnService = null;
     _powerCoordinator?.removeListener(_onPowerStateChanged);
     _powerCoordinator = null;
     _sproutAnimController.dispose();

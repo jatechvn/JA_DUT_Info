@@ -2,7 +2,7 @@
                        PROJECT INFORMATION CARD
 ========================================================================
 Project Name : JA_DUT_Info
-Version      : v2.5.0 (Golden SRF Diagnostics, Smart DUT Validation & Session History Edition)
+Version      : v2.6.0 (Auto SN/PN, IQ Remote PowerG 5 Node Protocol & Baseband Edition)
 Tech Stack   : Flutter 3.x / Dart 3.x / Windows C++ Native Runner / Java RF Helper
 Managed By   : JA Auto Git
 Website      : https://jatechvn.github.io/
@@ -11,10 +11,12 @@ Description  : Ultra-lightweight floating desktop widget displaying Device
                Under Test (DUT) hardware parameters with Windows autostart
                support, floating quick DUT switch capsule header, automated
                boot completion detection, multi-retry parameter acquisition,
-               automated RF wireless verification (PowerG 868/915MHz and
-               SRF 319.5/345/433MHz), Golden Panel SRF card diagnostics &
-               fail-fast detection, smart hardware validation (IMEI Luhn &
-               IQ4/IQ5 cross-model checks), session DUT history, Bento Frosted
+               Auto SN/PN (javaw.exe) & USB Debug Verification with external
+               JSON rule mapping, automated RF wireless verification (PowerG
+               868/915MHz Host & IQ Remote 5 Node protocols, and SRF 319.5/
+               345/433MHz), Golden Panel SRF card diagnostics & fail-fast
+               detection, smart hardware validation (IMEI Luhn, Baseband &
+               IQ4/IQ5/IQR5 checks), session DUT history, Bento Frosted
                Glass RF Diagnostics, Flutter Desktop Power Optimizer, LAN OTA
                Update, QQ Guardian 80% edge docking, and per-region click-through.
 ========================================================================

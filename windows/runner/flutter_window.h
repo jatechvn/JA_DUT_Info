@@ -49,6 +49,7 @@ class FlutterWindow : public Win32Window {
 
   // The window MethodChannel for dragging
   std::unique_ptr<flutter::MethodChannel<>> window_channel_;
+  std::unique_ptr<flutter::MethodChannel<>> autosn_channel_;
 
   // Dragging and click-through state
   bool is_dragging_ = false;

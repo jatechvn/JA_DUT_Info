@@ -61,6 +61,7 @@ if exist "%~dp0README.md" copy /y "%~dp0README.md" "%TARGET_DIR%\" >nul
 if exist "%~dp0CHANGELOG.md" copy /y "%~dp0CHANGELOG.md" "%TARGET_DIR%\" >nul
 if exist "%~dp0USERGUIDE.md" copy /y "%~dp0USERGUIDE.md" "%TARGET_DIR%\" >nul
 if exist "%~dp0RELEASE_NOTES.md" copy /y "%~dp0RELEASE_NOTES.md" "%TARGET_DIR%\" >nul
+if exist "%~dp0auto_sn_config.json" copy /y "%~dp0auto_sn_config.json" "%TARGET_DIR%\" >nul
 if exist "%~dp0LICENSE" copy /y "%~dp0LICENSE" "%TARGET_DIR%\" >nul
 
 :: 4. Dong bo toan bo Release sang dist va tao goi zip chuan dart-build-pro

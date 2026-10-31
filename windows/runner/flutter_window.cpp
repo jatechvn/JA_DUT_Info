@@ -6,6 +6,8 @@
 #include <flutter/standard_method_codec.h>
 #include "theme_win10.h"
 #include "theme_win11.h"
+#include "auto_sn_native.h"
+#include "utils.h"
 
 #pragma comment(lib, "comctl32.lib")
 
@@ -129,6 +131,7 @@ bool FlutterWindow::OnCreate() {
   g_flutter_window_instance = this;
   g_mouse_hook = SetWindowsHookEx(WH_MOUSE_LL, LowLevelMouseProc, GetModuleHandle(nullptr), 0);
   hit_test_timer_id_ = SetTimer(GetHandle(), 1001, 20, nullptr);
+  AutoSnNative::Initialize(GetHandle());
 
   auto messenger = flutter_controller_->engine()->messenger();
   
@@ -154,6 +157,126 @@ bool FlutterWindow::OnCreate() {
               ApplyThemeWin10(hwnd, is_dark);
             }
           }
+          result->Success();
+        } else {
+          result->NotImplemented();
+        }
+      });
+
+  autosn_channel_ = std::make_unique<flutter::MethodChannel<>>(
+      messenger, "ja_route/autosn",
+      &flutter::StandardMethodCodec::GetInstance());
+
+  autosn_channel_->SetMethodCallHandler(
+      [](const flutter::MethodCall<>& call,
+         std::unique_ptr<flutter::MethodResult<>> result) {
+        const auto& method = call.method_name();
+        auto utf8_to_wide = [](const std::string& str) -> std::wstring {
+          if (str.empty()) return std::wstring();
+          int sz = MultiByteToWideChar(CP_UTF8, 0, str.data(),
+                                       static_cast<int>(str.size()), nullptr, 0);
+          if (sz <= 0) return std::wstring();
+          std::wstring out(static_cast<size_t>(sz), L'\0');
+          MultiByteToWideChar(CP_UTF8, 0, str.data(),
+                              static_cast<int>(str.size()), out.data(), sz);
+          return out;
+        };
+        auto get_int64 = [](const flutter::EncodableValue& val) -> int64_t {
+          if (std::holds_alternative<int64_t>(val)) return std::get<int64_t>(val);
+          if (std::holds_alternative<int32_t>(val)) return static_cast<int64_t>(std::get<int32_t>(val));
+          return 0;
+        };
+
+        if (method == "configure") {
+          if (const auto* map = std::get_if<flutter::EncodableMap>(call.arguments())) {
+            auto tp_it = map->find(flutter::EncodableValue("targetProcess"));
+            if (tp_it != map->end() && std::holds_alternative<std::string>(tp_it->second)) {
+              AutoSnNative::SetTargetProcessName(
+                  utf8_to_wide(std::get<std::string>(tp_it->second)));
+            }
+            auto sk_it = map->find(flutter::EncodableValue("skipTokens"));
+            if (sk_it != map->end() && std::holds_alternative<flutter::EncodableList>(sk_it->second)) {
+              std::vector<std::wstring> tokens;
+              for (const auto& item : std::get<flutter::EncodableList>(sk_it->second)) {
+                if (std::holds_alternative<std::string>(item)) {
+                  tokens.push_back(utf8_to_wide(std::get<std::string>(item)));
+                }
+              }
+              AutoSnNative::SetSkipTokens(tokens);
+            }
+            auto en_it = map->find(flutter::EncodableValue("enabled"));
+            if (en_it != map->end() && std::holds_alternative<bool>(en_it->second)) {
+              AutoSnNative::SetEnabled(std::get<bool>(en_it->second));
+            }
+          }
+          result->Success(flutter::EncodableValue(AutoSnNative::IsEnabled()));
+        } else if (method == "setEnabled") {
+          bool enabled = false;
+          if (call.arguments() && std::holds_alternative<bool>(*call.arguments())) {
+            enabled = std::get<bool>(*call.arguments());
+          }
+          AutoSnNative::SetEnabled(enabled);
+          result->Success(flutter::EncodableValue(AutoSnNative::IsEnabled()));
+        } else if (method == "setSessionWaiting") {
+          bool waiting = false;
+          if (call.arguments() && std::holds_alternative<bool>(*call.arguments())) {
+            waiting = std::get<bool>(*call.arguments());
+          }
+          AutoSnNative::SetSessionWaiting(waiting);
+          result->Success();
+        } else if (method == "countComPorts") {
+          std::wstring keyword = L"Qualcomm HS-USB Diagnostics 9091";
+          if (call.arguments() && std::holds_alternative<std::string>(*call.arguments())) {
+            keyword = utf8_to_wide(std::get<std::string>(*call.arguments()));
+          }
+          int count = AutoSnNative::CountComPortsByKeyword(keyword);
+          result->Success(flutter::EncodableValue(count));
+        } else if (method == "sendNumpadEnter") {
+          int64_t hwnd = 0;
+          if (const auto* map = std::get_if<flutter::EncodableMap>(call.arguments())) {
+            auto it = map->find(flutter::EncodableValue("hwnd"));
+            if (it != map->end()) hwnd = get_int64(it->second);
+          }
+          AutoSnNative::SendNumpadEnterAsync(hwnd);
+          result->Success();
+        } else if (method == "onInvalidSn") {
+          int64_t hwnd = 0;
+          if (const auto* map = std::get_if<flutter::EncodableMap>(call.arguments())) {
+            auto it = map->find(flutter::EncodableValue("hwnd"));
+            if (it != map->end()) hwnd = get_int64(it->second);
+          }
+          AutoSnNative::RestoreInvalidSnFocusAsync(hwnd);
+          result->Success();
+        } else if (method == "fillPn") {
+          int64_t hwnd = 0;
+          std::wstring pn;
+          bool had_caret = false;
+          bool append_caret = true;
+          if (const auto* map = std::get_if<flutter::EncodableMap>(call.arguments())) {
+            auto h_it = map->find(flutter::EncodableValue("hwnd"));
+            if (h_it != map->end()) hwnd = get_int64(h_it->second);
+            auto p_it = map->find(flutter::EncodableValue("pn"));
+            if (p_it != map->end() && std::holds_alternative<std::string>(p_it->second)) {
+              pn = utf8_to_wide(std::get<std::string>(p_it->second));
+            }
+            auto hc_it = map->find(flutter::EncodableValue("hadCaret"));
+            if (hc_it != map->end() && std::holds_alternative<bool>(hc_it->second)) {
+              had_caret = std::get<bool>(hc_it->second);
+            }
+            auto ac_it = map->find(flutter::EncodableValue("appendCaret"));
+            if (ac_it != map->end() && std::holds_alternative<bool>(ac_it->second)) {
+              append_caret = std::get<bool>(ac_it->second);
+            }
+          }
+          AutoSnNative::FillPnAsync(hwnd, pn, had_caret, append_caret);
+          result->Success();
+        } else if (method == "sendSpace") {
+          int64_t hwnd = 0;
+          if (const auto* map = std::get_if<flutter::EncodableMap>(call.arguments())) {
+            auto it = map->find(flutter::EncodableValue("hwnd"));
+            if (it != map->end()) hwnd = get_int64(it->second);
+          }
+          AutoSnNative::SendSpaceAsync(hwnd);
           result->Success();
         } else {
           result->NotImplemented();
@@ -289,6 +412,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  AutoSnNative::Shutdown();
   if (g_mouse_hook) {
     UnhookWindowsHookEx(g_mouse_hook);
     g_mouse_hook = nullptr;
@@ -413,6 +537,42 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
+    case WM_APP_AUTOSN_CAPTURED: {
+      if (autosn_channel_) {
+        auto payload = AutoSnNative::ConsumeCapturedPayload();
+        flutter::EncodableMap args{
+            {flutter::EncodableValue("text"),
+             flutter::EncodableValue(payload.text_utf8)},
+            {flutter::EncodableValue("hwnd"),
+             flutter::EncodableValue(payload.javaw_hwnd)},
+        };
+        autosn_channel_->InvokeMethod(
+            "onSnCaptured", std::make_unique<flutter::EncodableValue>(args));
+      }
+      return 0;
+    }
+    case WM_APP_AUTOSN_PN_FILLED: {
+      if (autosn_channel_) {
+        bool ok = (wparam != 0);
+        autosn_channel_->InvokeMethod(
+            "onPnFilled", std::make_unique<flutter::EncodableValue>(ok));
+      }
+      return 0;
+    }
+    case WM_APP_AUTOSN_SPACE_SENT: {
+      if (autosn_channel_) {
+        bool ok = (wparam != 0);
+        autosn_channel_->InvokeMethod(
+            "onSpaceSent", std::make_unique<flutter::EncodableValue>(ok));
+      }
+      return 0;
+    }
+    case WM_APP_AUTOSN_ESC: {
+      if (autosn_channel_) {
+        autosn_channel_->InvokeMethod("onEscapePressed", nullptr);
+      }
+      return 0;
+    }
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);

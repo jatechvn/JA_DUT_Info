@@ -1,10 +1,43 @@
 // test/dut_validator_test.dart
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ja_dut_info/modules/logic.dart';
 import 'package:ja_dut_info/modules/services/dut_validator.dart';
 
 void main() {
   group('DutValidator Smart Validation Tests', () {
+    test('isValidBaseband rejects generic placeholders like msm', () {
+      expect(
+        AdbMonitor.isValidBaseband('BP04BP10ABM01(SC200EWFDAR14A01)'),
+        isTrue,
+      );
+      expect(AdbMonitor.isValidBaseband('MPSS.HI.4.3.1'), isTrue);
+      expect(AdbMonitor.isValidBaseband('msm'), isFalse);
+      expect(AdbMonitor.isValidBaseband('MSM'), isFalse);
+      expect(AdbMonitor.isValidBaseband('unknown'), isFalse);
+      expect(AdbMonitor.isValidBaseband('N/A'), isFalse);
+      expect(AdbMonitor.isValidBaseband(''), isFalse);
+    });
+
+    test('isIq5Device recognizes IQ Remote 5 (IQR5EU0 / QB95R2 / QR5EU0)', () {
+      expect(
+        AdbMonitor.isIq5Device(
+          pcasn: 'QB95R2X102620V00071',
+          syssn: 'QR5EU0X022624V00016',
+          syspn: 'IQR5EU0',
+          sysConfig: 'IQR5EU00000',
+        ),
+        isTrue,
+      );
+      expect(
+        DutValidator.hasModelMismatch({
+          'PCASN': 'QB95R2X102620V00071',
+          'SYSSN': 'QR5EU0X022624V00016',
+          'SYSPN': 'IQR5EU0',
+        }),
+        isFalse,
+      );
+    });
     test('isValidImei validates 15-digit Luhn checksums accurately', () {
       expect(DutValidator.isValidImei('490154203237518'), isTrue);
       expect(DutValidator.isValidImei('353879230123457'), isTrue);
@@ -100,6 +133,15 @@ void main() {
       );
       expect(
         DutValidator.isFieldWarning('RF', 'PASS - 915 MHz', cleanInfo),
+        isFalse,
+      );
+      expect(DutValidator.isFieldWarning('CPU', 'msm', cleanInfo), isTrue);
+      expect(
+        DutValidator.isFieldWarning(
+          'CPU',
+          'BP04BP10ABM01(SC200EWFDAR14A01)',
+          cleanInfo,
+        ),
         isFalse,
       );
     });

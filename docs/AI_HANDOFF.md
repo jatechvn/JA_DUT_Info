@@ -430,3 +430,11 @@ Implemented Golden Panel SRF card diagnostics and UI refinements:
 2. Added fail-fast termination in `runSrfReceiverProcess` (`lib/modules/services/srf_receiver.dart`) when `transmit()` returns `false` so `SrfReceiver.jar` terminates immediately instead of waiting 30s.
 3. Added `formatMainWindowRfSummary` and `GOLDEN ERR`/`FAIL` badge surfacing in `MainWindow` (`lib/modules/ui/main_window.dart`), removed the dim barrier box (`barrierColor: Colors.transparent`) across all modal dialogs while hiding background cards/wires when `_isDialogOpen` is true, centered the `TRẠM` badge in `RfDiagnosticsDialog`, and added automatic dialog dismissal when the DUT disconnects.
 4. Verified with `flutter analyze` (0 issues), full offline test suite, and live hardware test on IQ5 DUT `883a4506` + Golden Panel `bbb68d23` (`goldenFirmware: "11.2.0-G26"`).
+
+# Release v2.6.0: Auto SN/PN, IQ Remote PowerG 5 Node Protocol & Baseband fix — 2026-10-31
+
+Implemented Auto SN/PN & USB Debug verification, IQ Remote PowerG 5 (`IQR5EU0`) Node protocol support, and `persist.version.baseband` CPU detection:
+1. Added `AutoSnService` (`lib/modules/services/auto_sn_service.dart`), native Win32 automation (`windows/runner/auto_sn_native.h`, `windows/runner/auto_sn_native.cpp`), and external hot-reloadable configuration (`auto_sn_config.json`) preserved across builds, installs, and OTA updates.
+2. Updated `AdbMonitor.isValidBaseband` and CPU pipeline in `lib/modules/logic.dart` to read `persist.version.baseband` (`BP04BP10ABM01(SC200EWFDAR14A01)`) and reject generic placeholders (`msm`, `apq`, `sdm`, `qcom`, `unknown`).
+3. Updated `PowerGService.verifyDut` and `_resolveProtocol` (`lib/modules/services/powerg_service.dart`) to recognize IQ Remote 5 (`IQR5`, `QR5`, `QB95R`, `persist.qolsys.isremote=1`), query `powergv4bootload -s <slot> -u 6 -c 1` (`node->node` protocol, `PGNODE Received hello!`), and automatically fallback between `-u 0` and `-u 6`.
+4. Verified with `flutter analyze` (0 issues), `flutter test` (101/101 offline tests passed), and live hardware verification on `da9c1c8d` (`IQR5EU0`, `CPU: BP04BP10ABM01(SC200EWFDAR14A01)`, `PowerG: MCU OK - 868 MHz (EU) [FW: 02.38]`).

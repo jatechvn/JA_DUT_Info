@@ -5,6 +5,26 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 ---
 
 
+## [2.6.0] - 2026-10-31 — *Auto SN/PN, IQ Remote PowerG 5 Node Protocol & Baseband Edition*
+
+### 🚀 Nâng cấp & Tính năng mới (Enhancements & New Features)
+- **Tích Hợp Module Auto SN/PN (`javaw.exe`) & Xác Minh USB Debug (`AutoSnService` & `auto_sn_native.cpp`):**
+  - **Tự động điền Serial Number & Part Number (`Auto SN/PN`):** Tích hợp dịch vụ `lib/modules/services/auto_sn_service.dart` và bộ điều khiển Win32 native C++ (`windows/runner/auto_sn_native.cpp`, `windows/runner/auto_sn_native.h`) tự động tìm cửa sổ công cụ nạp `javaw.exe` (`Please scan System SN`, `Scan the System Serial Number`) và điền tự động `SYSSN` + `SYSPN` theo bảng quy tắc ánh xạ tiền tố.
+  - **Cấu hình JSON độc lập (`auto_sn_config.json`):** Toàn bộ trạng thái bật/tắt, tiêu đề cửa sổ nhận diện, thời gian chờ và danh sách quy tắc ánh xạ (`rules`: `prefix`, `length`, `partNumber`, `autoEnter`) được lưu ngoài file `auto_sn_config.json` cạnh file thực thi, tự động reload khi chỉnh sửa mà không cần biên dịch lại và được bảo toàn nguyên vẹn qua các bản cập nhật LAN OTA / `install.bat`.
+  - **Tự động kiểm tra & tắt USB Debug sau khi nạp:** Theo dõi cửa sổ `javaw.exe` đóng lại sau khi điền SN/PN, chờ thiết bị kết nối lại ADB, tự động đối chiếu `SYSSN`/`SYSPN` thực tế với giá trị kỳ vọng, tắt `adb_enabled 0` khi khớp hoàn toàn hoặc giữ nguyên ADB và cảnh báo đỏ trên giao diện nếu phát hiện sai lệch.
+  - **Nút bật/tắt nhanh `AUTO SN` trên thanh tiêu đề:** Bổ sung nút pill chuyển đổi nhanh `AUTO SN: ON/OFF` trên thanh điều khiển đầu cửa sổ và trong menu chuột phải.
+- **Hỗ Trợ Dòng IQ Remote PowerG 5 (`IQR5`) & Giao Thức PowerG V4 Node (`-u 6`):**
+  - **Nhận diện dòng IQ Remote 5 (`IQR5EU0`, `IQR5NA0`, `QB95R`, `QR5`):** Cập nhật `AdbMonitor.isIq5Device`, `AdbMonitor.isIq4Device`, `DutValidator` và `PowerGService._resolveProtocol` để nhận diện chính xác dòng bàn phím phụ IQ Remote PowerG 4/5 và tự động suy luận tần số `868 MHz (EU)` (`IQR5EU`) hoặc `915 MHz (NA)` (`IQR5NA`/`IQR5US`).
+  - **Giao thức PowerG V4 Node (`powergv4bootload -s <slot> -u 6 -c 1`):** Tự động sử dụng giao thức `node->node` (`-u 6`) cho các thiết bị IQ Remote (`IQR5`, `QR5`, `QB95R`, `persist.qolsys.isremote=1`), nhận diện phản hồi `PGNODE Received hello!`, đồng thời tự động chuyển đổi dự phòng hai chiều giữa Host (`-u 0`) và Node (`-u 6`) khi phát hiện khung truyền HPR `5A 0F BE`, khắc phục triệt để lỗi báo sai `Lỗi kết nối MCU PowerG V4` trên `IQR5EU0`.
+- **Chuẩn Hóa Đọc Phiên Bản Baseband `CPU` Trên Thiết Bị Wi-Fi IQ5 / IQR5 (`AdbMonitor.isValidBaseband`):**
+  - Bổ sung đọc thuộc tính dự phòng `persist.version.baseband` (ví dụ `BP04BP10ABM01(SC200EWFDAR14A01)`) ngay sau `gsm.version.baseband` và `gsm.version.baseband1`.
+  - Bổ sung bộ lọc `AdbMonitor.isValidBaseband` và cảnh báo trong `DutValidator.isFieldWarning` để loại bỏ các giá trị mặc định vô nghĩa của nền tảng như `"msm"`, `"apq"`, `"sdm"`, `"qcom"`, `"unknown"`.
+
+### 📦 Phát hành
+- Đồng bộ version 2.6.0+16 trong pubspec.yaml, constants.dart, ABOUT.txt, CHANGELOG.md, RELEASE_NOTES.md, README.md, USERGUIDE.md, docs/AI_HANDOFF.md.
+
+---
+
 ## [2.5.0] - 2026-10-24 — *Golden SRF Diagnostics, Smart DUT Validation & Session History Edition*
 
 ### 🚀 Nâng cấp & Tính năng mới (Enhancements & New Features)

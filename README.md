@@ -1,15 +1,30 @@
-# 💬 JA DUT Info — Golden SRF Diagnostics, Smart DUT Validation & Session History Edition (v2.5.0)
+# 💬 JA DUT Info — Auto SN/PN, IQ Remote PowerG 5 Node Protocol & Baseband Edition (v2.6.0)
 
 > **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Flutter Desktop Power Optimizer (0 FPS idle/inactive sleep)**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.5.0-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.6.0-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.5.0
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.6.0
+
+### 1. 🤖 Tự Động Điền SN/PN (`javaw.exe`) & Xác Minh Tắt USB Debug (`AutoSnService`)
+- **Tự động điền Serial & Part Number:** Tự động phát hiện cửa sổ `javaw.exe` (`Please scan System SN`, `Scan the System Serial Number`) và điền `SYSSN` + `SYSPN` theo quy tắc tiền tố.
+- **Cấu hình JSON ngoài (`auto_sn_config.json`):** Dễ dàng chỉnh sửa, bổ sung quy tắc model mới trong file `auto_sn_config.json` mà không cần biên dịch lại ứng dụng; file cấu hình được tự động giữ nguyên khi cập nhật OTA hoặc cài đặt mới.
+- **Xác minh sau nạp & tự động tắt USB Debug:** Sau khi cửa sổ Java đóng, tự động đọc lại `SYSSN`/`SYSPN` trên DUT để đối chiếu và tắt `adb_enabled 0` khi khớp hoàn toàn (hoặc giữ ADB và báo lỗi đỏ nếu không khớp).
+
+### 2. 📡 Hỗ Trợ IQ Remote PowerG 5 (`IQR5`) & Giao Thức PowerG V4 Node (`-u 6`)
+- **Kiểm tra chuẩn xác thẻ PowerG Node:** Tự động nhận diện các thiết bị bàn phím phụ IQ Remote (`IQR5EU0`, `IQR5NA0`, `QB95R`, `QR5`) và sử dụng giao thức `powergv4bootload -s <slot> -u 6 -c 1` (`node->node`), kèm cơ chế fallback tự động giữa Host (`-u 0`) và Node (`-u 6`).
+
+### 3. 💻 Chuẩn Hóa Đọc Baseband `CPU` Trên Thiết Bị Wi-Fi (`persist.version.baseband`)
+- **Đọc chính xác phiên bản module SoC/Baseband:** Tự động đọc `persist.version.baseband` (`BP04BP10ABM01(SC200EWFDAR14A01)`) khi `gsm.version.baseband` trống và loại bỏ chuỗi mặc định `"msm"`.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.5.0 & Trước Đó
 
 ### 1. 🛡️ Chẩn Đoán Lỗi Thẻ SRF Trên Golden Panel & Cơ Chế Fail-Fast (`GOLDEN ERR`)
 - **Phân biệt lỗi Golden Panel vs lỗi DUT:** Kiểm tra ma trận khe cắm (`inspectGoldenSlot`) và đọc trực tiếp phiên bản firmware từ MCU qua Binder `transact 14` (`GetFullPicVer`) trên cả DUT và Golden Panel.

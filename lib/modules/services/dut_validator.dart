@@ -58,8 +58,10 @@ class DutValidator {
     final pn = syspn.trim().toUpperCase();
     return sn.startsWith('QP5') ||
         sn.startsWith('QH5') ||
+        sn.startsWith('QR5') ||
         pn.startsWith('IQP5') ||
         pn.startsWith('IQH5') ||
+        pn.startsWith('IQR5') ||
         pn.startsWith('IQ5');
   }
 
@@ -68,9 +70,12 @@ class DutValidator {
     final pn = syspn.trim().toUpperCase();
     return sn.startsWith('QP4') ||
         sn.startsWith('QH4') ||
+        sn.startsWith('QR4') ||
         sn.startsWith('QPH') ||
         pn.startsWith('IQP4') ||
         pn.startsWith('IQH4') ||
+        pn.startsWith('IQR4') ||
+        pn.startsWith('IQRP') ||
         pn.startsWith('IQ4');
   }
 
@@ -125,6 +130,9 @@ class DutValidator {
         return hasModelMismatch(allInfo);
       case 'IMEI':
         return !isValidImei(trimmed);
+      case 'CPU':
+        final lower = trimmed.toLowerCase();
+        return lower == 'msm' || lower == 'unknown' || lower.contains('error');
       case 'RF':
         final upper = trimmed.toUpperCase();
         return upper.contains('FAIL') ||

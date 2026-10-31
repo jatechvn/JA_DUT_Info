@@ -19,7 +19,8 @@ void main() {
         if (monitor.deviceConnected &&
             !monitor.isRfTesting &&
             monitor.powerGResult != null &&
-            monitor.info['PCASN'] != 'Đang đọc...') {
+            monitor.info['PCASN'] != 'Đang đọc...' &&
+            monitor.info['CPU'] != 'Đang đọc...') {
           break;
         }
       }
@@ -30,10 +31,16 @@ void main() {
       print('Device Connected:    ${monitor.deviceConnected}');
       print('PCASN:               ${monitor.info['PCASN']}');
       print('SYSSN:               ${monitor.info['SYSSN']}');
+      print('SYSPN:               ${monitor.info['SYSPN']}');
+      print('CPU:                 ${monitor.info['CPU']}');
       print('Station Result:      ${monitor.stationResult}');
       print('PowerG Summary:      ${monitor.info['PowerG']}');
       print('SRF Summary:         ${monitor.info['SRF']}');
       print('PowerG Status:       ${monitor.powerGResult?.status}');
+      print(
+        'PowerG FW / Freq:    ${monitor.powerGResult?.fw} / ${monitor.powerGResult?.frequency}',
+      );
+      print('PowerG Message:      ${monitor.powerGResult?.message}');
       print('SRF Status:          ${monitor.srfResult?.status}');
       print('=======================================================\n');
 

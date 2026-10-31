@@ -806,9 +806,9 @@ if not errorlevel 1 goto wait_loop
 timeout /t 1 /nobreak >nul
 
 echo [2/3] Dang ghi de tep ung dung moi...
-robocopy "%DST_DIR%" "%BACKUP_DIR%" /E /NP /R:2 /W:1 /XD logs /XF update_config.json config.ini config.json >"%~dp0backup.log"
+robocopy "%DST_DIR%" "%BACKUP_DIR%" /E /NP /R:2 /W:1 /XD logs /XF update_config.json config.ini config.json auto_sn_config.json >"%~dp0backup.log"
 if errorlevel 8 exit /b 13
-robocopy "%SRC_DIR%" "%DST_DIR%" /E /IS /IT /NP /R:5 /W:2 /XD logs /XF update_config.json config.ini config.json >"%~dp0apply.log"
+robocopy "%SRC_DIR%" "%DST_DIR%" /E /IS /IT /NP /R:5 /W:2 /XD logs /XF update_config.json config.ini config.json auto_sn_config.json >"%~dp0apply.log"
 if errorlevel 8 goto rollback
 
 echo [3/3] Khoi chay ung dung moi...

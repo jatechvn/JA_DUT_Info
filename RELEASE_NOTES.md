@@ -1,3 +1,25 @@
+# JA DUT Info — Release Notes v2.6.0
+
+Phiên bản **v2.6.0** tích hợp module **Tự động điền Serial/Part Number (`Auto SN/PN`) & xác minh tắt USB Debug tự động** với file cấu hình JSON ngoài (`auto_sn_config.json`), bổ sung **hỗ trợ giao thức PowerG V4 Node (`-u 6`) cho dòng IQ Remote PowerG 5 (`IQR5EU0` / `IQR5NA0`)**, và **chuẩn hóa đọc phiên bản Baseband `CPU` qua `persist.version.baseband`** (loại bỏ giá trị `"msm"` ảo trên thiết bị Wi-Fi).
+
+---
+
+## 🌟 Điểm Mới Nổi Bật trên v2.6.0
+
+### 1. 🤖 Tự Động Điền SN/PN (`javaw.exe`) & Xác Minh Tắt USB Debug (`AutoSnService`)
+- **Tự động điền SN & PN vào cửa sổ Java:** Tự động phát hiện hộp thoại nhập SN của công cụ Java (`Please scan System SN`, `Scan the System Serial Number`), đối chiếu `SYSSN` của DUT với danh sách quy tắc tiền tố để tự động điền `SYSSN`, `Tab`, `SYSPN` và `Enter`.
+- **Cấu hình JSON linh hoạt (`auto_sn_config.json`):** Toàn bộ quy tắc tiền tố (`prefix`, `length`, `partNumber`, `autoEnter`) nằm trong file `auto_sn_config.json` cạnh file thực thi, cho phép thêm/sửa model mới bằng Notepad và tự động áp dụng ngay mà không cần build lại app.
+- **Đối soát sau nạp & tự động tắt USB Debug:** Sau khi cửa sổ `javaw.exe` đóng, ứng dụng tự động đọc lại `SYSSN`/`SYSPN` trên DUT: nếu khớp hoàn toàn sẽ tự động chạy `settings put global adb_enabled 0` để tắt USB Debug; nếu sai lệch sẽ giữ nguyên ADB và hiển thị cảnh báo đỏ để kiểm tra lại.
+- **Nút bật/tắt 1-Click:** Chuyển đổi nhanh `AUTO SN: ON/OFF` ngay trên thanh tiêu đề hoặc menu chuột phải.
+
+### 2. 📡 Hỗ Trợ IQ Remote PowerG 5 (`IQR5`) & Giao Thức PowerG V4 Node (`-u 6`)
+- **Tự động nhận diện giao thức Node (`-u 6`):** Trên dòng bàn phím phụ IQ Remote PowerG 5 (`IQR5EU0`, `PCASN: QB95R...`, `SYSSN: QR5...`), thẻ PowerG V4 chạy firmware Node (`PGNODE`). Ứng dụng tự động kiểm tra bằng `powergv4bootload -s <slot> -u 6 -c 1` và hỗ trợ chuyển đổi dự phòng hai chiều giữa Host (`-u 0`) và Node (`-u 6`), hiển thị chính xác `MCU OK - 868 MHz (EU) [FW: 02.38]`.
+
+### 3. 💻 Chuẩn Hóa Đọc Baseband `CPU` Trên Thiết Bị Wi-Fi (`persist.version.baseband`)
+- **Loại bỏ hiển thị `"msm"`:** Bổ sung đọc `persist.version.baseband` (`BP04BP10ABM01(SC200EWFDAR14A01)`) khi `gsm.version.baseband` trống trên các model Wi-Fi (`IQR5EU0`) và lọc bỏ các giá trị nền tảng chung (`msm`, `apq`, `sdm`, `qcom`, `unknown`).
+
+---
+
 # JA DUT Info — Release Notes v2.5.0
 
 Phiên bản **v2.5.0** bổ sung cơ chế **Chẩn đoán chuyên sâu lỗi thẻ SRF trên Golden Panel & dừng sớm (Fail-Fast)** (phân biệt rõ lỗi thẻ SRF Rev 1 `G16`/`D16`/`H16` không hỗ trợ phát TX, thiếu card hoặc lỗi MCU trên Golden so với lỗi thu sóng của DUT), **tinh chỉnh hộp thoại kính mờ không viền nền & tự động đóng khi rút cáp**, cùng bộ công cụ **kiểm tra hợp lệ phần cứng thông minh (`DutValidator`) và lịch sử DUT trong phiên (`DutHistoryDialog`)**.

@@ -53,7 +53,7 @@ foreach ($file in $runtime) {
 }
 
 # Distribute scripts and project documentation
-foreach ($name in @('debug.bat','install.bat','uninstall.bat','uninstall.ps1','ABOUT.txt','README.md','CHANGELOG.md','USERGUIDE.md','RELEASE_NOTES.md','LICENSE')) {
+foreach ($name in @('debug.bat','install.bat','uninstall.bat','uninstall.ps1','auto_sn_config.json','ABOUT.txt','README.md','CHANGELOG.md','USERGUIDE.md','RELEASE_NOTES.md','LICENSE')) {
     $source = Join-Path $root $name
     if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $payload $name) }
     elseif ($name -in @('install.bat','uninstall.bat','uninstall.ps1')) { throw "Missing installer helper: $name" }

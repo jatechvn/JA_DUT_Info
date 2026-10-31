@@ -58,11 +58,14 @@ if exist "%TARGET_DIR%\ja_dut_info.exe" (
     powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $backup=Join-Path $env:TEMP ('JA_DUT_Install_Backup_' + [guid]::NewGuid()); & robocopy $env:TARGET_DIR $backup /E /R:1 /W:1 /XD logs data /XF update_config.json config.json config.ini *.log *.key > $null; if ($LASTEXITCODE -ge 8) { exit 1 }; Write-Host ('Backup: ' + $backup); exit 0"
     if errorlevel 1 goto install_error
 )
-robocopy "%SOURCE_DIR%" "%TARGET_DIR%" /E /R:1 /W:1 /XD logs /XF update_config.json config.json config.ini *.log *.key >nul
+robocopy "%SOURCE_DIR%" "%TARGET_DIR%" /E /R:1 /W:1 /XD logs /XF update_config.json config.json config.ini auto_sn_config.json *.log *.key >nul
 if errorlevel 8 (
     echo [ERROR] Failed to copy application files!
     if "%SILENT_MODE%"=="0" pause
     exit /b 1
+)
+if not exist "%TARGET_DIR%\auto_sn_config.json" if exist "%SOURCE_DIR%\auto_sn_config.json" (
+    copy /y "%SOURCE_DIR%\auto_sn_config.json" "%TARGET_DIR%\auto_sn_config.json" >nul
 )
 copy /y "%SCRIPT_DIR%\uninstall.ps1" "%TARGET_DIR%\uninstall.ps1" >nul
 if errorlevel 1 goto install_error

@@ -1,0 +1,36 @@
+{
+  "_comment": "Cấu hình Tự động nhận diện SN & điền PN cho javaw.exe. Sửa file này và bấm Lưu (Ctrl+S) sẽ có hiệu lực ngay ở lần nhấn Enter tiếp theo mà không cần khởi động lại app.",
+  "enabled": true,
+  "target_process": "javaw.exe",
+  "com_port_keyword": "Qualcomm HS-USB Diagnostics 9091",
+  "com_wait_timeout_sec": 30,
+  "adb_wait_timeout_sec": 60,
+  "append_caret": true,
+  "skip_clipboard_contains": [
+    "1\tPanelTamper"
+  ],
+  "prefix_overrides": {
+    "_comment": "Tùy chọn: Nếu mã SN bắt đầu bằng khóa dưới đây thì ưu tiên lấy thẳng mã PN chỉ định (vẫn tự ghép hậu tố -XXX nếu có).",
+    "EXAMPLE_QP9999": "IQP9999-SPECIAL"
+  },
+  "forms": [
+    {
+      "name": "Form Chuẩn Qolsys QP (19 ký tự + hậu tố tùy chọn, VD: QP4001xxxxxxxxxxxxx-USA)",
+      "enabled": true,
+      "sn_regex": "^(QP[A-Z0-9]{17})(-[A-Z]{3})?(\\^)?$",
+      "pn_prefix": "I",
+      "sn_take_length": 6,
+      "keep_suffix": true,
+      "fixed_pn": ""
+    },
+    {
+      "name": "Form Dự Phòng Qolsys QH (19 ký tự + hậu tố tùy chọn)",
+      "enabled": false,
+      "sn_regex": "^(QH[A-Z0-9]{17})(-[A-Z]{3})?(\\^)?$",
+      "pn_prefix": "I",
+      "sn_take_length": 6,
+      "keep_suffix": true,
+      "fixed_pn": ""
+    }
+  ]
+}
