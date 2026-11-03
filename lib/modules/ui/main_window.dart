@@ -20,6 +20,7 @@ import 'styles.dart';
 import 'bubble_hover_region.dart';
 import 'dut_history_dialog.dart';
 import 'glass_update_dialog.dart';
+import 'golden_audit_dialog.dart';
 import 'ota_settings_dialog.dart';
 import 'rf_diagnostics_dialog.dart';
 
@@ -371,6 +372,16 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
   void _openDutHistoryDialog() {
     setState(() => _isDialogOpen = true);
     showDutHistoryDialog(
+      context: context,
+      onDialogClosed: () {
+        if (mounted) setState(() => _isDialogOpen = false);
+      },
+    );
+  }
+
+  void _openGoldenAuditDialog() {
+    setState(() => _isDialogOpen = true);
+    showGoldenAuditDialog(
       context: context,
       onDialogClosed: () {
         if (mounted) setState(() => _isDialogOpen = false);
@@ -778,6 +789,35 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
             ],
           ),
         ),
+        PopupMenuItem<String>(
+          value: 'golden_audit',
+          height: 36,
+          child: Row(
+            children: [
+              const Icon(
+                Icons.verified_user_rounded,
+                size: 16,
+                color: Color(0xFF10B981),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  monitor.goldenAudit.latestReport != null
+                      ? 'Kiểm chuẩn Đồ gá & Bo mẫu (FHI: ${monitor.goldenAudit.latestReport!.fhiScore}%)...'
+                      : 'Kiểm chuẩn Đồ gá & Bo mẫu (FHI)...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                    color: theme.isDark
+                        ? Colors.white
+                        : const Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
         const PopupMenuDivider(height: 1),
         PopupMenuItem<String>(
           value: 'toggle_autosn',
@@ -996,6 +1036,8 @@ class _MainWindowState extends State<MainWindow> with TickerProviderStateMixin {
         _triggerToast('Đang kiểm tra lại sóng RF...');
       } else if (value == 'rf_diagnostics') {
         _openRfDiagnosticsDialog();
+      } else if (value == 'golden_audit') {
+        _openGoldenAuditDialog();
       } else if (value == 'close') {
         _closeApp();
       }

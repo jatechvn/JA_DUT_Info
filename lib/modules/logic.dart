@@ -11,6 +11,7 @@ import 'services/srf_service.dart';
 import 'services/boot_gate.dart';
 import 'services/command_scope.dart';
 import 'services/dut_history_service.dart';
+import 'services/golden_audit_service.dart';
 
 class AdbMonitor extends ChangeNotifier {
   int _loadGeneration = 0;
@@ -21,6 +22,11 @@ class AdbMonitor extends ChangeNotifier {
   final Future<SrfResult> Function(String, String?) _verifySrf;
   final Duration pollInterval;
   final DutHistoryService history;
+  final GoldenAuditService goldenAudit;
+  int _lastEepromRetryCount = 0;
+  int _lastBootWaitMs = 0;
+  int get lastEepromRetryCount => _lastEepromRetryCount;
+  int get lastBootWaitMs => _lastBootWaitMs;
   CommandScope? _readScope;
   bool _loading = false;
   int _loopEpoch = 0;
@@ -204,6 +210,7 @@ class AdbMonitor extends ChangeNotifier {
     this.pollInterval = const Duration(seconds: 2),
     bool autoStart = true,
     DutHistoryService? historyService,
+    GoldenAuditService? goldenAuditService,
   }) : _verifyPowerG =
            powerGVerifier ?? ((serial) => PowerGService().verifyDut(serial)),
        _verifySrf =
@@ -217,7 +224,12 @@ class AdbMonitor extends ChangeNotifier {
            historyService ??
            ((command == null && powerGVerifier == null && srfVerifier == null)
                ? (DutHistoryService()..loadFromDiskSyncSafe())
-               : DutHistoryService(storageFilePath: null)) {
+               : DutHistoryService(storageFilePath: null)),
+       goldenAudit =
+           goldenAuditService ??
+           ((command == null && powerGVerifier == null && srfVerifier == null)
+               ? (GoldenAuditService()..loadFromDiskSyncSafe())
+               : GoldenAuditService(storageFilePath: null)) {
     _bootGate = BootGate(
       (serial, property) =>
           _command(['adb', '-s', serial, 'shell', 'getprop', property]),
@@ -339,6 +351,8 @@ class AdbMonitor extends ChangeNotifier {
     _stationResult = 'Loading...';
     _powerGResult = null;
     _srfResult = null;
+    _lastEepromRetryCount = 0;
+    _lastBootWaitMs = 0;
     _info = {
       'PCASN': 'Đang đọc...',
       'SYSSN': 'Đang đọc...',
@@ -355,7 +369,9 @@ class AdbMonitor extends ChangeNotifier {
     notifyListeners();
 
     // 1. Wait for boot completion if device is rebooting
+    final bootSw = Stopwatch()..start();
     final booted = await _waitForBootComplete(serial, generation);
+    _lastBootWaitMs = bootSw.elapsedMilliseconds;
     if (!_running || _currentDut != serial || _loadGeneration != generation) {
       return;
     }
@@ -380,6 +396,7 @@ class AdbMonitor extends ChangeNotifier {
     final pcasnFuture = () async {
       for (var attempt = 1; attempt <= 5; attempt++) {
         if (!isCurrent()) return;
+        if (attempt > 1) _lastEepromRetryCount++;
         try {
           final out = await _command([
             'adb',
@@ -455,6 +472,7 @@ class AdbMonitor extends ChangeNotifier {
       var syssnVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
         if (!isCurrent()) return;
+        if (attempt > 1) _lastEepromRetryCount++;
         try {
           final out = await _command([
             'adb',
@@ -608,6 +626,7 @@ class AdbMonitor extends ChangeNotifier {
       var imeiVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
         if (!isCurrent()) return;
+        if (attempt > 1) _lastEepromRetryCount++;
         try {
           var cmd = isIq5 ? 'imeino' : 'imei';
           var val = await _command([
@@ -656,6 +675,7 @@ class AdbMonitor extends ChangeNotifier {
       var syspnVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
         if (!isCurrent()) return;
+        if (attempt > 1) _lastEepromRetryCount++;
         try {
           final val = (await _command([
             'adb',
@@ -695,6 +715,7 @@ class AdbMonitor extends ChangeNotifier {
       var lcmpnVal = '';
       for (var attempt = 1; attempt <= 5; attempt++) {
         if (!isCurrent()) return;
+        if (attempt > 1) _lastEepromRetryCount++;
         try {
           final val = (await _command([
             'adb',
@@ -798,6 +819,16 @@ class AdbMonitor extends ChangeNotifier {
       powerGSummary: pgSum,
       srfSummary: srfSum,
       isRfPass: rfPass,
+    );
+    goldenAudit.evaluateDut(
+      dutSerial: _currentDut,
+      modelName: model,
+      info: _info,
+      powerGResult: _powerGResult,
+      srfResult: _srfResult,
+      goldenPanelSerial: _goldenPanelSerial,
+      eepromRetryCount: _lastEepromRetryCount,
+      bootWaitMs: _lastBootWaitMs,
     );
   }
 
@@ -1032,6 +1063,9 @@ class AdbMonitor extends ChangeNotifier {
     _overlayText = 'NO DATA';
     _showOverlay = true;
     _stationResult = 'N/A';
+    _lastEepromRetryCount = 0;
+    _lastBootWaitMs = 0;
+    goldenAudit.clearLatestReport();
     setDutLogSession(null); // Switch back to startup.log
     notifyListeners();
   }

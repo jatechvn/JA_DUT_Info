@@ -1,3 +1,24 @@
+# JA DUT Info — Release Notes v2.7.0
+
+Phiên bản **v2.7.0** ra mắt phân hệ **`JA_GoldenAudit_Studio` (Kiểm Chuẩn Bo Mẫu Đầu Ca & Chỉ Số Sức Khỏe Đồ Gá — FHI 0–100%)**, giúp đo lường độ suy hao tiệm tiến của đồ gá (kim Pogo, cáp USB, ăng-ten PowerG/SRF), quản lý danh sách **Bo Mẫu Chuẩn (KGU Whitelist)** và tự động cấp **Chứng nhận Giao ca Điện tử (`ShiftCertificate`)** theo Ca Ngày (`07:30–19:30`) / Ca Đêm (`19:30–07:30`).
+
+---
+
+## 🌟 Điểm Mới Nổi Bật trên v2.7.0
+
+### 1. 🛡️ Chỉ Số Sức Khỏe Đồ Gá 4 Trụ Cột (`FHI: 0–100%`)
+- **PowerG Link Health (30 điểm):** Đánh giá chất lượng thu sóng PowerG dựa trên thời gian phản hồi thực tế (`durationMs`) và số vòng lặp lấy mẫu (`pollAttempts`).
+- **SRF & Golden Panel Health (30 điểm):** Đánh giá tốc độ thu 5 gói SRF (`durationMs`), trạng thái thẻ phát trên Golden Panel và số lần phải ping lại MCU PIC (`mcuPingRetries`).
+- **Độ Ổn Định Cáp USB & Kim Pogo (20 điểm):** Phát hiện sớm hiện tượng tiếp xúc kém qua số lần phải thử lại lệnh đọc EEPROM (`testeepapi`) và thời gian chờ khởi động (`bootWaitMs`).
+- **Tính Toàn Vẹn Định Danh & Chuẩn BOM (20 điểm):** Kiểm tra chéo dòng máy IQ4/IQ5 (`PCASN` vs `SYSSN`/`SYSPN`), kiểm tra Luhn `IMEI`, `CPU` Baseband và đối chiếu `SYSPN` với hồ sơ Bo Mẫu đã đăng ký.
+
+### 2. ⭐ Quản Lý Bo Mẫu KGU & Chứng Nhận Giao Ca Điện Tử (`ShiftCertificate`)
+- **Tự động cấp chứng chỉ đầu ca:** Khi cắm Bo Mẫu KGU đã đăng ký, hoàn tất kiểm tra sóng RF và đạt **`FHI >= 85% (CERTIFIED)`**, hệ thống tự động cấp chứng nhận cho ca làm việc hiện tại (`Ca Ngày 07:30–19:30` hoặc `Ca Đêm 19:30–07:30`).
+- **Ràng buộc an toàn nghiêm ngặt:** Chỉ cấp chứng chỉ khi cả hai kênh PowerG và SRF đã hoàn tất kiểm tra trong đúng ca sản xuất hiện tại; không sử dụng lại kết quả đo từ ca trước.
+- **Xuất biên bản kiểm chuẩn 1-Click (`Copy C.Chỉ`):** Sao chép toàn bộ biên bản kiểm chuẩn đồ gá & bo mẫu vào Clipboard để gửi báo cáo giao ca qua LAN.
+
+---
+
 # JA DUT Info — Release Notes v2.6.0
 
 Phiên bản **v2.6.0** tích hợp module **Tự động điền Serial/Part Number (`Auto SN/PN`) & xác minh tắt USB Debug tự động** với file cấu hình JSON ngoài (`auto_sn_config.json`), bổ sung **hỗ trợ giao thức PowerG V4 Node (`-u 6`) cho dòng IQ Remote PowerG 5 (`IQR5EU0` / `IQR5NA0`)**, và **chuẩn hóa đọc phiên bản Baseband `CPU` qua `persist.version.baseband`** (loại bỏ giá trị `"msm"` ảo trên thiết bị Wi-Fi).

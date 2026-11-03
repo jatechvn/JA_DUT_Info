@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'styles.dart';
+import 'golden_audit_dialog.dart';
 import '../logic.dart';
+import '../services/golden_audit_service.dart';
 import '../services/powerg_service.dart';
 import '../services/srf_service.dart';
 
@@ -302,7 +304,6 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
 
                     // --- FOOTER BUTTONS ---
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         // Retest button
                         ElevatedButton.icon(
@@ -340,6 +341,69 @@ class _RfDiagnosticsDialogState extends State<RfDiagnosticsDialog> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
+                        // FHI Golden Audit button
+                        Flexible(
+                          child: Builder(
+                            builder: (ctx) {
+                              final fhiReport =
+                                  monitor.goldenAudit.latestReport;
+                              final fhiScore = fhiReport?.fhiScore;
+                              final fhiColor = fhiReport == null
+                                  ? const Color(0xFF10B981)
+                                  : switch (fhiReport.grade) {
+                                      FixtureHealthGrade.certified =>
+                                        const Color(0xFF10B981),
+                                      FixtureHealthGrade.warning => const Color(
+                                        0xFFF59E0B,
+                                      ),
+                                      FixtureHealthGrade.critical =>
+                                        const Color(0xFFEF4444),
+                                    };
+                              return OutlinedButton.icon(
+                                onPressed: isTesting
+                                    ? null
+                                    : () {
+                                        Navigator.of(context).pop();
+                                        showGoldenAuditDialog(context: context);
+                                      },
+                                icon: Icon(
+                                  Icons.verified_user_rounded,
+                                  size: 13,
+                                  color: fhiColor,
+                                ),
+                                label: Text(
+                                  fhiScore != null ? 'FHI $fhiScore%' : 'FHI',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: fhiColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: fhiColor.withValues(alpha: 0.45),
+                                  ),
+                                  backgroundColor: fhiColor.withValues(
+                                    alpha: 0.10,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 6),
                         // Close button
                         TextButton(
                           onPressed: isTesting

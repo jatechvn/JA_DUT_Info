@@ -1,15 +1,24 @@
-# 💬 JA DUT Info — Auto SN/PN, IQ Remote PowerG 5 Node Protocol & Baseband Edition (v2.6.0)
+# 💬 JA DUT Info — Golden Audit Studio, Fixture Health Index (FHI) & Auto SN/PN Edition (v2.7.0)
 
-> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Flutter Desktop Power Optimizer (0 FPS idle/inactive sleep)**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5**, **Giải mã giao thức PowerG 868MHz & 915MHz đa tầng**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
+> **Widget nổi màn hình thông minh (Floating Desktop Overlay)** giám sát và hiển thị thông số phần cứng thiết bị DUT qua ADB với phong cách **Bong bóng chat Messenger**, **Kiểm chuẩn Bo Mẫu đầu ca & Chỉ số sức khỏe đồ gá FHI (0–100%)**, **Tự động điền SN/PN (`javaw.exe`) & xác minh tắt USB Debug**, **Flutter Desktop Power Optimizer (0 FPS idle/inactive sleep)**, **Nhận diện phần cứng đa nền tảng IQ4 / IQ5 / IQR5**, **Giải mã giao thức PowerG 868MHz & 915MHz (Host & Node)**, **QQ Guardian 80% Edge Docking**, **Tùy chọn khởi động cùng Windows (Autostart)**, **Thanh Capsule đổi DUT nhanh trực quan**, **Tự động chờ hoàn tất khởi động (Boot Completion Detection)**, **Cơ chế quét lặp thông số đa tầng (Multi-Retry Acquisition)**, **Kiểm tra sóng RF không dây tự động (PowerG 868/915MHz & SRF đa slot)**, **Cập nhật LAN OTA 1-Click**, **Bộ cài đặt Windows không cần Admin (install.bat / uninstall.bat)**, **Nhãn Station nghiêng theo đường cong dây**, **Thẻ kính mờ Frosted Glass**, và **Per-region Click-Through** cho phép click chuột xuyên qua khoảng trống xuống ứng dụng nền.
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)](https://dart.dev)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows)](https://microsoft.com)
-[![Release](https://img.shields.io/badge/Release-v2.6.0-10B981)](#)
+[![Release](https://img.shields.io/badge/Release-v2.7.0-10B981)](#)
 
 ---
 
-## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.6.0
+## 🌟 Điểm Nổi Bật & Tính Năng Mới trên v2.7.0
+
+### 1. 🛡️ Kiểm Chuẩn Bo Mẫu Đầu Ca & Chỉ Số Sức Khỏe Đồ Gá (`JA_GoldenAudit_Studio` — FHI 0–100%)
+- **Chấm điểm FHI 4 trụ cột tự động:** Đánh giá toàn diện sức khỏe trạm test qua **Sóng PowerG (30đ)**, **Sóng SRF & Golden Panel (30đ)**, **Cáp USB / Kim Pogo (20đ)** và **Định danh & BOM (20đ)**.
+- **Phát hiện sớm suy hao đồ gá:** Tự động cảnh báo khi lệnh đọc EEPROM phải retry nhiều lần (kim Pogo nguồn VDD / cáp USB tiếp xúc kém), thời gian chờ boot kéo dài hoặc thu phát sóng RF chậm.
+- **Quản lý Bo Mẫu Chuẩn (KGU Whitelist) & Chứng nhận Ca (`Ca Ngày 07:30–19:30` / `Ca Đêm 19:30–07:30`):** Đăng ký Bo Mẫu KGU trực tiếp trên hộp thoại `GoldenAuditDialog` (`396x295`), tự động cấp chứng chỉ đầu ca khi Bo Mẫu đạt `FHI >= 85%` và hỗ trợ sao chép biên bản kiểm chuẩn 1-Click.
+
+---
+
+## 🌟 Các Tính Năng Đã Có từ v2.6.0 & Trước Đó
 
 ### 1. 🤖 Tự Động Điền SN/PN (`javaw.exe`) & Xác Minh Tắt USB Debug (`AutoSnService`)
 - **Tự động điền Serial & Part Number:** Tự động phát hiện cửa sổ `javaw.exe` (`Please scan System SN`, `Scan the System Serial Number`) và điền `SYSSN` + `SYSPN` theo quy tắc tiền tố.

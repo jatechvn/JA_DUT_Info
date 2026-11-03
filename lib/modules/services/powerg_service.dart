@@ -23,6 +23,8 @@ class PowerGResult {
   final String? comPort;
   final String message;
   final String rawDetails;
+  final int durationMs;
+  final int pollAttempts;
 
   const PowerGResult({
     required this.status,
@@ -33,6 +35,8 @@ class PowerGResult {
     this.comPort,
     required this.message,
     this.rawDetails = '',
+    this.durationMs = 0,
+    this.pollAttempts = 1,
   });
 
   bool get isPass => status == PowerGStatus.pass;
@@ -82,6 +86,8 @@ class PowerGService {
     required String fw,
     required String protocol,
     required String details,
+    int durationMs = 0,
+    int pollAttempts = 1,
   }) => PowerGResult(
     status: PowerGStatus.mcuOk,
     fw: fw.trim().isEmpty ? 'N/A' : fw,
@@ -89,6 +95,8 @@ class PowerGService {
     frequency: mapProtocolToFrequency(protocol),
     message: 'Card & MCU OK (Chưa test thu sóng RF)',
     rawDetails: details,
+    durationMs: durationMs,
+    pollAttempts: pollAttempts,
   );
 
   /// Map PowerG protocol code to human-readable frequency band
@@ -398,14 +406,17 @@ class PowerGService {
   /// 6. Disable AutoLearn (transact 2 0)
   Future<PowerGResult> verifyDut(String dutSerial) async {
     logger.info('[PowerGService] Starting verification on DUT: $dutSerial');
+    final stopwatch = Stopwatch()..start();
 
     // 1. Inspect properties on DUT with retry (allows time for boot & hw_discovery)
     bool isCardInstalled = false;
     String cardOut = '';
     String cardV4Out = '';
     String protocol = '';
+    int discoveryAttempts = 1;
 
     for (var attempt = 1; attempt <= 10; attempt++) {
+      discoveryAttempts = attempt;
       cardOut = (await runCmd([
         'adb',
         '-s',
@@ -481,9 +492,11 @@ class PowerGService {
       logger.info(
         '[PowerGService] PowerG card not installed on DUT $dutSerial after retries',
       );
-      return const PowerGResult(
+      return PowerGResult(
         status: PowerGStatus.notInstalled,
         message: 'Không có card PowerG',
+        durationMs: stopwatch.elapsedMilliseconds,
+        pollAttempts: discoveryAttempts,
       );
     }
 
@@ -605,6 +618,7 @@ class PowerGService {
 
       // On IQ Remote 5 (e.g. IQR5EU0), the PowerG card runs Node firmware (-u 6).
       // On standard IQ5 Panel, the PowerG card runs Host firmware (default -u 0).
+      var bootloadAttempts = 1;
       var bootloadOut = await runBootloadCheck(useNodeProtocol: isIqRemote);
       var isSuccess = checkBootloadSuccess(bootloadOut);
 
@@ -613,6 +627,7 @@ class PowerGService {
         final shouldRetryOpposite =
             isIqRemote || bootloadOut.contains('5A 0F BE');
         if (shouldRetryOpposite) {
+          bootloadAttempts = 2;
           logger.info(
             '[PowerGService] Retrying powergv4bootload on $dutSerial with useNodeProtocol=${!isIqRemote}',
           );
@@ -653,7 +668,13 @@ class PowerGService {
         logger.info(
           '[PowerGService] IQ5 PowerG V4 MCU & Radio check PASS on $dutSerial (fw=$fw, protocol=$protocol)',
         );
-        return iq5McuResult(fw: fw, protocol: protocol, details: bootloadOut);
+        return iq5McuResult(
+          fw: fw,
+          protocol: protocol,
+          details: bootloadOut,
+          durationMs: stopwatch.elapsedMilliseconds,
+          pollAttempts: bootloadAttempts,
+        );
       } else {
         logger.severe(
           '[PowerGService] IQ5 PowerG V4 check failed on $dutSerial: $bootloadOut',
@@ -665,6 +686,8 @@ class PowerGService {
           frequency: freqStr,
           message: 'Lỗi MCU / Radio (powergv4bootload thất bại)',
           rawDetails: bootloadOut,
+          durationMs: stopwatch.elapsedMilliseconds,
+          pollAttempts: bootloadAttempts,
         );
       }
     }
@@ -700,7 +723,9 @@ class PowerGService {
     // 4. Ping MCU & Radio Check (Transact 200) with retry
     bool isMcuAlive = false;
     String pingOut = '';
+    int pingAttempts = 1;
     for (var p = 1; p <= 3; p++) {
+      pingAttempts = p;
       pingOut = await runCmd([
         'adb',
         '-s',
@@ -729,6 +754,8 @@ class PowerGService {
         frequency: freqStr,
         message: 'Lỗi MCU / Radio (Transact 200 thất bại)',
         rawDetails: pingOut,
+        durationMs: stopwatch.elapsedMilliseconds,
+        pollAttempts: pingAttempts,
       );
     }
     logger.info('[PowerGService] MCU & Radio ping PASS on $dutSerial');
@@ -743,6 +770,8 @@ class PowerGService {
         protocol: protocol.isEmpty ? 'N/A' : protocol,
         frequency: freqStr,
         message: 'MCU OK (Chưa gắn bộ phát RF)',
+        durationMs: stopwatch.elapsedMilliseconds,
+        pollAttempts: pingAttempts,
       );
     }
 
@@ -799,8 +828,10 @@ class PowerGService {
       // 6. Poll transact 202 for registration message
       String receivedHex = '';
       int? receivedIdDec;
+      int pollAttempts = 1;
       // 20 attempts x 400ms = 8.0 seconds polling window
       for (int i = 0; i < 20; i++) {
+        pollAttempts = i + 1;
         await Future.delayed(const Duration(milliseconds: 400));
         final pollOut = await runCmd([
           'adb',
@@ -852,6 +883,8 @@ class PowerGService {
           comPort: comPort,
           message: 'RF PASS (ID: $receivedIdDec)',
           rawDetails: 'Registered Hex: $receivedHex',
+          durationMs: stopwatch.elapsedMilliseconds,
+          pollAttempts: pollAttempts,
         );
       } else if (transmitterFailed) {
         return PowerGResult(
@@ -861,6 +894,8 @@ class PowerGService {
           frequency: freqStr,
           comPort: comPort,
           message: 'MCU OK (Bộ phát bận/lỗi: ${transmitResult['error']})',
+          durationMs: stopwatch.elapsedMilliseconds,
+          pollAttempts: pollAttempts,
         );
       } else {
         logger.warning(
@@ -873,6 +908,8 @@ class PowerGService {
           frequency: freqStr,
           comPort: comPort,
           message: 'FAIL (Không nhận được tín hiệu RF)',
+          durationMs: stopwatch.elapsedMilliseconds,
+          pollAttempts: pollAttempts,
         );
       }
     } catch (e) {
@@ -897,6 +934,7 @@ class PowerGService {
         frequency: freqStr,
         comPort: comPort,
         message: 'Lỗi kiểm tra RF: $e',
+        durationMs: stopwatch.elapsedMilliseconds,
       );
     }
   }

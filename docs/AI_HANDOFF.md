@@ -414,6 +414,63 @@ and both freeze on hide; bubble effects remain lightweight. Relevant12 tests
 passed, analyzer and diff check clean. Evidence: build/rf-information-effects-final.log.
 No build, native Windows visual/hardware verification or dist changes performed.
 
+# Golden Audit verification and Release visibility investigation — 2026-11-03
+
+Reviewed the two attached plan/implementation documents against the dirty source.
+Existing modifications to logic/RF/MainWindow/dialogs and new GoldenAudit files
+were preserved. Full dart analyze clean;107 existing offline tests passed in
+build/golden-audit-verification.log. Hardware live tests excluded deliberately.
+Metadata still appVersion2.6.0; proposed2.7.0 is not synchronized.
+
+Confirmed two certificate defects with isolated, intentionally failing audit
+tests in build/golden_audit_safety_audit_test.dart (not the normal suite): a
+registered board with PowerG PASS and SRF null receives85 points and certifies
+the shift; registering a board at20:00 reuses a passing09:00 report to certify
+the new night shift with no new measurement. Evidence:
+build/golden-audit-safety-findings.log. Existing tests explicitly permit an IQ5
+MCU-only/no-SRF certificate; this is not proof of RF reception or fixture link
+margin. No production scoring/certificate edits made during verification.
+
+Reported running app traced to PID22480 at
+build/windows/x64/runner/Release/ja_dut_info.exe. app.so timestamp2026-11-03
+09:00, whereas dist app.so remains2026-10-31. Native read-only probes found
+HWND1450414 FLUTTER_RUNNER_WIN32_WINDOW visible, rect1480,705..1920,1040,
+DWM cloaked0, alpha255, visible FLUTTERVIEW child440x335. Session log continues
+ADB polling; MainWindowHandle0 from Get-Process alone is misleading for this
+tool window. Console buffer is empty; no startup exception established.
+Computer-use sky does not list this tool window. Its explicit-path launch
+resolved to the installed-app path instead, without exposing a targetable
+window; do not claim it restored or validated the running Release UI.
+Asked user whether a small bubble strip is visible at right screen edge.
+Root cause of the visual invisibility remains OPEN pending visual evidence;
+no speculative runner fix, process kill, rebuild or dist/runtime changes made.
+
+# FHI certificate regression fixes — 2026-11-03
+
+User requested fixes for the two independently reproduced FHI issues. Updated
+GoldenAuditService only: automatic evaluation and registration both require
+completed PowerG and SRF results (non-null and not testing). Registration also
+requires the report shift to equal the registration shift and forbids future
+timestamps. Preserve original report shiftId/shiftLabel when registration updates
+Golden membership, preventing repeated registration from relabeling old evidence.
+Cached completeness is updated with each evaluation and cleared with the report.
+Existing score weights and completed MCU-only/notInstalled SKU policy unchanged;
+this patch does not upgrade MCU OK into RF PASS or revise certificate history.
+
+Added test/golden_audit_certification_test.dart with13 cases: each missing/testing
+channel before/after registration, recovery when both results complete, both
+shift boundaries, previous day, repeated registration, same-shift positive path
+and clearing evidence. Before patch11 cases failed/2 passed; after patch all13
+pass,19 Golden Audit tests pass, full offline suite120 passed. Analyzer/format/
+diff checks clean. Logs: build/fhi-regression-before.log,
+build/fhi-regression-after.log and build/fhi-fix-offline-final.log.
+Reviewed narrow patch with gpt-ecc-agent-code-reviewer. Existing dirty changes,
+dist, running process and stored runtime/certificates preserved. No build,
+packaging or live hardware validation performed. User confirmed Release app
+became visible again; original transient visibility root cause is still unknown.
+
+Next: build separately and validate pending-RF and shift rollover in Windows UI.
+
 # Multi-package station & FA upgrades (Phase 1-4) — 2026-10-15
 
 Implemented all four approved upgrade packages:
@@ -438,3 +495,11 @@ Implemented Auto SN/PN & USB Debug verification, IQ Remote PowerG 5 (`IQR5EU0`) 
 2. Updated `AdbMonitor.isValidBaseband` and CPU pipeline in `lib/modules/logic.dart` to read `persist.version.baseband` (`BP04BP10ABM01(SC200EWFDAR14A01)`) and reject generic placeholders (`msm`, `apq`, `sdm`, `qcom`, `unknown`).
 3. Updated `PowerGService.verifyDut` and `_resolveProtocol` (`lib/modules/services/powerg_service.dart`) to recognize IQ Remote 5 (`IQR5`, `QR5`, `QB95R`, `persist.qolsys.isremote=1`), query `powergv4bootload -s <slot> -u 6 -c 1` (`node->node` protocol, `PGNODE Received hello!`), and automatically fallback between `-u 0` and `-u 6`.
 4. Verified with `flutter analyze` (0 issues), `flutter test` (101/101 offline tests passed), and live hardware verification on `da9c1c8d` (`IQR5EU0`, `CPU: BP04BP10ABM01(SC200EWFDAR14A01)`, `PowerG: MCU OK - 868 MHz (EU) [FW: 02.38]`).
+
+# Release v2.7.0: Golden Audit Studio & Fixture Health Index (FHI) — 2026-11-03
+
+Implemented `JA_GoldenAudit_Studio` (`GoldenAuditService` & `GoldenAuditDialog`):
+1. Added timing & retry telemetry (`durationMs`, `pollAttempts` in `PowerGResult`; `durationMs`, `mcuPingRetries` in `SrfResult`; `lastEepromRetryCount` & `lastBootWaitMs` in `AdbMonitor`).
+2. Created `GoldenAuditService` (`lib/modules/services/golden_audit_service.dart`) computing 4-pillar Fixture Health Index (`FHI: 0–100%`), managing `GoldenBoardProfile` KGU whitelist and `ShiftCertificate` handover records (`logs/golden_audit_state.json`) across Day (`07:30–19:30`) and Night (`19:30–07:30`) shifts, with strict shift-boundary and RF-completeness guards.
+3. Created `GoldenAuditDialog` (`lib/modules/ui/golden_audit_dialog.dart`) in a `396x295` Frosted Glass layout and integrated quick access from `RfDiagnosticsDialog` and `MainWindow` context menu.
+4. Verified with `flutter analyze` (0 issues) and `flutter test` (120/120 offline tests passed, including `test/golden_audit_service_test.dart` and `test/golden_audit_certification_test.dart`).

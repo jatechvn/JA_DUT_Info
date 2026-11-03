@@ -5,6 +5,20 @@ All notable changes to the **JA_DUT_Info** project will be documented in this fi
 ---
 
 
+## [2.7.0] - 2026-11-03 — *Golden Audit Studio & Fixture Health Index (FHI) Edition*
+
+### 🚀 Nâng cấp & Tính năng mới (Enhancements & New Features)
+- **Phân Hệ Kiểm Chuẩn Bo Mẫu Đầu Ca & Chỉ Số Sức Khỏe Đồ Gá (`GoldenAuditService` & `GoldenAuditDialog`):**
+  - **Chấm điểm Sức khỏe Đồ gá 4 trụ cột (`FHI: 0–100%`):** Tự động tính toán chỉ số FHI dựa trên 4 thành phần trọng số: **Sóng PowerG (30 điểm)** (thời gian thu `durationMs`, số vòng poll `pollAttempts`), **Sóng SRF & Golden Panel (30 điểm)** (thời gian thu `durationMs`, số lần retry `mcuPingRetries`), **Cáp USB / Kim Pogo (20 điểm)** (`lastEepromRetryCount` từ các lệnh `testeepapi`, thời gian chờ khởi động `lastBootWaitMs`), và **Định danh & BOM (20 điểm)** (kiểm tra chéo `DutValidator`, chuẩn Luhn IMEI, Baseband CPU và khớp mã `SYSPN` Bo Mẫu).
+  - **Phân loại 3 cấp độ & Chẩn đoán hao mòn tự động:** Phân loại trạng thái đồ gá thành `CERTIFIED` ($\ge 85\%$), `WARNING` ($70\%..84\%$) và `CRITICAL` ($< 70\%$), đồng thời sinh khuyến nghị bảo dưỡng cụ thể cho chân kim Pogo nguồn VDD, cáp USB, ăng-ten buồng chắn RF hoặc thẻ SRF trên Golden Panel.
+  - **Quản lý danh sách Bo Mẫu Chuẩn (`GoldenBoardProfile` KGU Whitelist) & Chứng chỉ Giao ca (`ShiftCertificate`):** Cho phép đăng ký / gỡ đăng ký Bo Mẫu KGU ngay trên giao diện, tự động phân tách **Ca Ngày (`07:30–19:30`)** và **Ca Đêm (`19:30–07:30`)**, tự động cấp chứng nhận đầu ca khi Bo Mẫu KGU hoàn tất đo kiểm cả 2 kênh RF và đạt `FHI >= 85%` trong đúng ca hiện tại, lưu trữ bền vững tại `logs/golden_audit_state.json`.
+  - **Hộp thoại Kính mờ `GoldenAuditDialog` (`396x295`) & Xuất Biên bản Kiểm chuẩn 1-Click:** Tích hợp nút mở nhanh **`FHI xx%`** trong hộp thoại `RfDiagnosticsDialog` và mục menu chuột phải **`Kiểm chuẩn Đồ gá & Bo mẫu (FHI)...`** trên `MainWindow`, hỗ trợ sao chép nhanh biên bản kiểm chuẩn đầu ca (`formatAuditCertificate`) vào Clipboard.
+
+### 📦 Phát hành
+- Đồng bộ version 2.7.0+17 trong pubspec.yaml, constants.dart, ABOUT.txt, CHANGELOG.md, RELEASE_NOTES.md, README.md, USERGUIDE.md, docs/AI_HANDOFF.md.
+
+---
+
 ## [2.6.0] - 2026-10-31 — *Auto SN/PN, IQ Remote PowerG 5 Node Protocol & Baseband Edition*
 
 ### 🚀 Nâng cấp & Tính năng mới (Enhancements & New Features)

@@ -63,6 +63,8 @@ class SrfResult {
   final String? goldenFirmware;
   final String message;
   final String rawDetails;
+  final int durationMs;
+  final int mcuPingRetries;
 
   const SrfResult({
     required this.status,
@@ -72,6 +74,8 @@ class SrfResult {
     this.goldenFirmware,
     required this.message,
     this.rawDetails = '',
+    this.durationMs = 0,
+    this.mcuPingRetries = 0,
   });
 
   bool get isPass => status == SrfStatus.pass;
@@ -488,6 +492,7 @@ class SrfService {
     logger.info(
       '[SrfService] Starting verification on DUT: $dutSerial (Golden: $goldenSerial)',
     );
+    final stopwatch = Stopwatch()..start();
 
     // 1. Read matrix property with retry (allows time for boot & hw_discovery)
     String matrix = '';
@@ -585,10 +590,11 @@ class SrfService {
       logger.info(
         '[SrfService] No SRF card in matrix on DUT $dutSerial after retries',
       );
-      return const SrfResult(
+      return SrfResult(
         status: SrfStatus.notInstalled,
         matrix: '0000',
         message: 'Không có card SRF',
+        durationMs: stopwatch.elapsedMilliseconds,
       );
     }
 
@@ -688,15 +694,18 @@ class SrfService {
         status: SrfStatus.notInstalled,
         matrix: matrix,
         message: 'Không có slot SRF hoạt động',
+        durationMs: stopwatch.elapsedMilliseconds,
       );
     }
 
     // 4. Ping MCU for each slot with retry
+    int totalMcuRetries = 0;
     for (final slot in slots) {
       bool alive = false;
       for (var p = 1; p <= 3; p++) {
         alive = await pingMcu(dutSerial, slot.serviceName);
         if (alive) break;
+        totalMcuRetries++;
         if (p < 3) await Future.delayed(const Duration(seconds: 1));
       }
       if (!alive) {
@@ -705,6 +714,8 @@ class SrfService {
           matrix: matrix,
           slots: slots,
           message: 'Lỗi MCU PIC [${slot.serviceName}]',
+          durationMs: stopwatch.elapsedMilliseconds,
+          mcuPingRetries: totalMcuRetries,
         );
       }
     }
@@ -717,6 +728,8 @@ class SrfService {
         matrix: matrix,
         slots: slots,
         message: 'MCU OK (Chưa có Golden Panel)',
+        durationMs: stopwatch.elapsedMilliseconds,
+        mcuPingRetries: totalMcuRetries,
       );
     }
 
@@ -740,6 +753,8 @@ class SrfService {
         goldenPanelSerial: goldenSerial,
         message:
             'MCU OK (Chưa xác minh giao thức thu hoặc Golden không hợp lệ)',
+        durationMs: stopwatch.elapsedMilliseconds,
+        mcuPingRetries: totalMcuRetries,
       );
     }
     final details = StringBuffer();
@@ -758,6 +773,8 @@ class SrfService {
           goldenFirmware: verifiedGoldenFw,
           message: precheck.errorMessage,
           rawDetails: precheck.rawOutput,
+          durationMs: stopwatch.elapsedMilliseconds,
+          mcuPingRetries: totalMcuRetries,
         );
       }
 
@@ -787,6 +804,8 @@ class SrfService {
             goldenFirmware: verifiedGoldenFw,
             message: txResult!.errorMessage,
             rawDetails: details.toString(),
+            durationMs: stopwatch.elapsedMilliseconds,
+            mcuPingRetries: totalMcuRetries,
           );
         }
         final fwLabel = verifiedGoldenFw != null && verifiedGoldenFw!.isNotEmpty
@@ -801,6 +820,8 @@ class SrfService {
           message:
               'Golden đã phát TX ($fwLabel) nhưng DUT không thu đủ 5 gói (kiểm tra ăng-ten Golden/DUT)',
           rawDetails: details.toString(),
+          durationMs: stopwatch.elapsedMilliseconds,
+          mcuPingRetries: totalMcuRetries,
         );
       }
     }
@@ -812,6 +833,8 @@ class SrfService {
       goldenFirmware: verifiedGoldenFw,
       message: 'RF PASS (5 gói đúng Air ID, RSSI ≥ -99 dBm)',
       rawDetails: details.toString(),
+      durationMs: stopwatch.elapsedMilliseconds,
+      mcuPingRetries: totalMcuRetries,
     );
   }
 }
